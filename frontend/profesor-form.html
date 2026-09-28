@@ -10,7 +10,9 @@
 <body class="w3-light-grey">
 
   <div class="w3-bar w3-indigo w3-padding">
-    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <span class="w3-bar-item w3-large">
+      <i class="fa fa-graduation-cap"></i> NiceProject
+    </span>
     <a href="profesores.html" class="w3-bar-item w3-button w3-right">Volver</a>
   </div>
 
@@ -18,13 +20,16 @@
     <h1 class="w3-text-indigo" id="titulo">Nuevo Profesor</h1>
 
     <div class="w3-card-4 w3-white w3-padding-16 w3-margin-top" style="max-width:800px;">
-      <form id="form" class="w3-container">
+      <form id="form" class="w3-container" novalidate>
 
         <div class="w3-row-padding">
           <div class="w3-half">
             <label class="w3-text-indigo"><b>Número de empleado *</b></label>
-            <input class="w3-input w3-border" id="numeroEmpleado" required>
+            <input class="w3-input w3-border" id="numeroEmpleado" type="text" maxlength="6"
+              placeholder="Ejemplo: EMP001" autocomplete="off" required>
+            <small class="w3-text-grey">Formato requerido: EMP seguido de 3 números.</small>
           </div>
+
           <div class="w3-half">
             <label class="w3-text-indigo"><b>Academia *</b></label>
             <select class="w3-select w3-border" id="academiaId" required>
@@ -40,29 +45,32 @@
         <div class="w3-row-padding w3-margin-top">
           <div class="w3-half">
             <label class="w3-text-indigo"><b>Nombre *</b></label>
-            <input class="w3-input w3-border" id="nombre" required>
+            <input class="w3-input w3-border" id="nombre" type="text" maxlength="80" required>
           </div>
+
           <div class="w3-half">
-            <label class="w3-text-indigo"><b>Apellido</b></label>
-            <input class="w3-input w3-border" id="apellido">
+            <label class="w3-text-indigo"><b>Apellido *</b></label>
+            <input class="w3-input w3-border" id="apellido" type="text" maxlength="100" required>
           </div>
         </div>
 
         <label class="w3-text-indigo w3-margin-top"><b>Especialidad</b></label>
-        <input class="w3-input w3-border" id="especialidad">
+        <input class="w3-input w3-border" id="especialidad" type="text" maxlength="120">
 
         <div class="w3-row-padding w3-margin-top">
           <div class="w3-third">
             <label class="w3-text-indigo"><b>Licenciatura</b></label>
-            <input class="w3-input w3-border" id="licenciatura">
+            <input class="w3-input w3-border" id="licenciatura" type="text" maxlength="150">
           </div>
+
           <div class="w3-third">
             <label class="w3-text-indigo"><b>Maestría</b></label>
-            <input class="w3-input w3-border" id="maestria">
+            <input class="w3-input w3-border" id="maestria" type="text" maxlength="150">
           </div>
+
           <div class="w3-third">
             <label class="w3-text-indigo"><b>Doctorado</b></label>
-            <input class="w3-input w3-border" id="doctorado">
+            <input class="w3-input w3-border" id="doctorado" type="text" maxlength="150">
           </div>
         </div>
 
@@ -70,13 +78,14 @@
           <div class="w3-half">
             <label class="w3-text-indigo"><b>SNI</b></label>
             <select class="w3-select w3-border" id="sni">
-              <option>Ninguno</option>
-              <option>Candidato</option>
-              <option>Nivel 1</option>
-              <option>Nivel 2</option>
-              <option>Nivel 3</option>
+              <option value="Ninguno">Ninguno</option>
+              <option value="Candidato">Candidato</option>
+              <option value="Nivel 1">Nivel 1</option>
+              <option value="Nivel 2">Nivel 2</option>
+              <option value="Nivel 3">Nivel 3</option>
             </select>
           </div>
+
           <div class="w3-half">
             <label class="w3-text-indigo w3-block"><b>Perfil PRODEP</b></label>
             <input class="w3-check" type="checkbox" id="perfilPRODEP">
@@ -86,18 +95,25 @@
 
         <hr class="w3-margin-top">
         <h3 class="w3-text-indigo">Materias que imparte</h3>
+        <p class="w3-text-grey">El nivel de dominio debe ser un número entero entre 0 y 10.</p>
+
         <div id="materiasContainer"></div>
+
         <button type="button" class="w3-btn w3-blue w3-round w3-small" id="addMateria">
           <i class="fa fa-plus"></i> Agregar materia
         </button>
 
         <hr>
-        <button type="submit" class="w3-btn w3-green w3-round">
+
+        <button type="submit" class="w3-btn w3-green w3-round" id="btnGuardar">
           <i class="fa fa-save"></i> Guardar
         </button>
+
         <a href="profesores.html" class="w3-btn w3-grey w3-round">Cancelar</a>
 
-        <p id="msg" class="w3-text-red w3-margin-top"></p>
+        <div id="msg"
+          class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
+          style="display:none;"></div>
       </form>
     </div>
   </div>
@@ -105,40 +121,90 @@
   <script type="module">
     import { getProfesor, crearProfesor, actualizarProfesor } from './js/api.js';
     import { requiereSesion } from './js/auth.js';
+
     requiereSesion();
 
     const params = new URLSearchParams(window.location.search);
-    const id = params.get('id'); // null si es nuevo
+    const id = params.get('id');
 
+    const form = document.getElementById('form');
     const container = document.getElementById('materiasContainer');
+    const msg = document.getElementById('msg');
+    const btnGuardar = document.getElementById('btnGuardar');
+    const numeroEmpleado = document.getElementById('numeroEmpleado');
+
+    function mostrarError(mensaje) {
+      msg.textContent = mensaje;
+      msg.style.display = 'block';
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function limpiarError() {
+      msg.textContent = '';
+      msg.style.display = 'none';
+    }
+
+    numeroEmpleado.addEventListener('input', () => {
+      numeroEmpleado.value = numeroEmpleado.value
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 6);
+    });
+
+    function escaparHTML(texto) {
+      return String(texto)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
 
     function agregarFilaMateria(nombre = '', nivel = 5) {
       const div = document.createElement('div');
       div.className = 'w3-row-padding w3-margin-bottom materia-row';
+
       div.innerHTML = `
         <div class="w3-col s7">
-          <input class="w3-input w3-border mat-nombre" placeholder="Nombre de materia" value="${nombre}">
+          <input class="w3-input w3-border mat-nombre" type="text" maxlength="120"
+            placeholder="Nombre de materia" value="${escaparHTML(nombre)}">
         </div>
+
         <div class="w3-col s3">
-          <input class="w3-input w3-border mat-nivel" type="number" min="0" max="10" value="${nivel}">
+          <input class="w3-input w3-border mat-nivel" type="number"
+            min="0" max="10" step="1" value="${Number(nivel)}">
         </div>
+
         <div class="w3-col s2">
-          <button type="button" class="w3-button w3-red w3-round btn-del-mat">
+          <button type="button" class="w3-button w3-red w3-round btn-del-mat"
+            title="Eliminar materia">
             <i class="fa fa-times"></i>
           </button>
         </div>
       `;
-      div.querySelector('.btn-del-mat').addEventListener('click', () => div.remove());
+
+      div.querySelector('.btn-del-mat').addEventListener('click', () => {
+        div.remove();
+      });
+
       container.appendChild(div);
     }
 
-    document.getElementById('addMateria').addEventListener('click', () => agregarFilaMateria());
+    document.getElementById('addMateria').addEventListener('click', () => {
+      agregarFilaMateria();
+    });
 
-    // Si viene id, cargar datos para editar
-    if (id) {
+    async function cargarProfesor() {
+      if (!id) {
+        agregarFilaMateria();
+        return;
+      }
+
       document.getElementById('titulo').textContent = 'Editar Profesor';
-      (async () => {
+
+      try {
         const p = await getProfesor(id);
+
         document.getElementById('numeroEmpleado').value = p.numeroEmpleado || '';
         document.getElementById('nombre').value = p.nombre || '';
         document.getElementById('apellido').value = p.apellido || '';
@@ -147,29 +213,72 @@
         document.getElementById('maestria').value = p.maestria || '';
         document.getElementById('doctorado').value = p.doctorado || '';
         document.getElementById('sni').value = p.sni || 'Ninguno';
-        document.getElementById('perfilPRODEP').checked = !!p.perfilPRODEP;
+        document.getElementById('perfilPRODEP').checked = Boolean(p.perfilPRODEP);
         document.getElementById('academiaId').value = p.academiaId || '';
 
-        (p.materias || []).forEach(m => agregarFilaMateria(m.nombre, m.nivel));
-      })();
-    } else {
-      // modo creación: agrega 1 fila vacía al inicio
-      agregarFilaMateria();
+        container.innerHTML = '';
+
+        if (Array.isArray(p.materias) && p.materias.length > 0) {
+          p.materias.forEach(m => agregarFilaMateria(m.nombre, m.nivel));
+        } else {
+          agregarFilaMateria();
+        }
+      } catch (err) {
+        mostrarError(err.message || 'No fue posible cargar el profesor');
+      }
     }
 
-    // Submit
-    document.getElementById('form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const msg = document.getElementById('msg');
-      msg.textContent = '';
+    function obtenerMaterias() {
+      return [...document.querySelectorAll('.materia-row')]
+        .map(row => ({
+          nombre: row.querySelector('.mat-nombre').value.trim(),
+          nivel: Number(row.querySelector('.mat-nivel').value)
+        }))
+        .filter(m => m.nombre !== '');
+    }
 
-      const materias = [...document.querySelectorAll('.materia-row')].map(row => ({
-        nombre: row.querySelector('.mat-nombre').value.trim(),
-        nivel: Number(row.querySelector('.mat-nivel').value)
-      })).filter(m => m.nombre !== '');
+    function validarFormulario(data) {
+      if (!/^EMP\d{3}$/.test(data.numeroEmpleado)) {
+        return 'El número de empleado debe tener el formato EMP001.';
+      }
+
+      if (!data.nombre) {
+        return 'El nombre es obligatorio.';
+      }
+
+      if (!data.apellido) {
+        return 'El apellido es obligatorio.';
+      }
+
+      if (!data.academiaId) {
+        return 'Debes seleccionar una academia.';
+      }
+
+      const nombres = new Set();
+
+      for (const materia of data.materias) {
+        if (!Number.isInteger(materia.nivel) || materia.nivel < 0 || materia.nivel > 10) {
+          return 'Cada nivel de dominio debe ser un número entero entre 0 y 10.';
+        }
+
+        const nombreNormalizado = materia.nombre.toLowerCase();
+
+        if (nombres.has(nombreNormalizado)) {
+          return `La materia "${materia.nombre}" está repetida.`;
+        }
+
+        nombres.add(nombreNormalizado);
+      }
+
+      return null;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      limpiarError();
 
       const data = {
-        numeroEmpleado: document.getElementById('numeroEmpleado').value.trim(),
+        numeroEmpleado: numeroEmpleado.value.trim().toUpperCase(),
         nombre: document.getElementById('nombre').value.trim(),
         apellido: document.getElementById('apellido').value.trim(),
         especialidad: document.getElementById('especialidad').value.trim(),
@@ -179,8 +288,18 @@
         sni: document.getElementById('sni').value,
         perfilPRODEP: document.getElementById('perfilPRODEP').checked,
         academiaId: document.getElementById('academiaId').value,
-        materias
+        materias: obtenerMaterias()
       };
+
+      const error = validarFormulario(data);
+
+      if (error) {
+        mostrarError(error);
+        return;
+      }
+
+      btnGuardar.disabled = true;
+      btnGuardar.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Guardando...';
 
       try {
         if (id) {
@@ -188,11 +307,17 @@
         } else {
           await crearProfesor(data);
         }
+
         window.location.href = 'profesores.html';
       } catch (err) {
-        msg.textContent = err.message;
+        mostrarError(err.message || 'No fue posible guardar el profesor');
+      } finally {
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = '<i class="fa fa-save"></i> Guardar';
       }
     });
+
+    cargarProfesor();
   </script>
 </body>
 </html>
