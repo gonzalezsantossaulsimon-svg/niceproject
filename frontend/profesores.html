@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profesores</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
+    <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo">Profesores</h1>
+    <button class="w3-btn w3-green w3-round" onclick="window.location.href='profesor-form.html'">
+      <i class="fa fa-plus"></i> Nuevo profesor
+    </button>
+
+    <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
+      <table class="w3-table-all w3-hoverable">
+        <thead>
+          <tr class="w3-indigo">
+            <th>ID</th>
+            <th>No. Empleado</th>
+            <th>Nombre</th>
+            <th>Especialidad</th>
+            <th>Último grado</th>
+            <th>Academia</th>
+            <th>Materias</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getProfesores, eliminarProfesor } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+    requiereSesion();
+
+    const tbody = document.getElementById('tbody');
+
+    async function cargar() {
+      const profes = await getProfesores();
+      tbody.innerHTML = '';
+      profes.forEach(p => {
+        const materias = (p.materias || [])
+          .map(m => `${m.nombre} (${m.nivel})`)
+          .join(', ');
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.id}</td>
+          <td>${p.numeroEmpleado}</td>
+          <td>${p.nombre} ${p.apellido}</td>
+          <td>${p.especialidad}</td>
+          <td>${p.ultimoGrado}</td>
+          <td>${p.academiaId}</td>
+          <td>${materias}</td>
+          <td>
+            <button class="w3-button w3-blue w3-small" data-edit="${p.id}"><i class="fa fa-pencil"></i></button>
+            <button class="w3-button w3-red w3-small" data-del="${p.id}"><i class="fa fa-trash"></i></button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Eventos
+      tbody.querySelectorAll('[data-edit]').forEach(b => {
+        b.addEventListener('click', () => {
+          const id = b.getAttribute('data-edit');
+          window.location.href = `profesor-form.html?id=${id}`;
+        });
+      });
+      tbody.querySelectorAll('[data-del]').forEach(b => {
+        b.addEventListener('click', async () => {
+          const id = b.getAttribute('data-del');
+          if (confirm(`¿Eliminar al profesor #${id}?`)) {
+            await eliminarProfesor(id);
+            cargar();
+          }
+        });
+      });
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

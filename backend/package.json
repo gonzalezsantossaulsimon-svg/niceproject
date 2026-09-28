@@ -1,0 +1,22 @@
+{
+  "name": "niceproject-backend",
+  "version": "1.0.0",
+  "description": "Backend Express para sistema de profesores y academias",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
+  "keywords": [
+    "express",
+    "rad",
+    "profesores"
+  ],
+  "author": "Saul Gonzalez",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

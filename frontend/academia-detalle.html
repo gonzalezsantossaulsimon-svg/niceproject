@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalle Academia</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="academias.html" class="w3-bar-item w3-button w3-right">Volver</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo" id="nombre"></h1>
+    <p class="w3-text-grey"><b>Clave:</b> <span id="clave"></span></p>
+    <p id="descripcion"></p>
+
+    <h3 class="w3-text-indigo w3-margin-top">Materias asignadas</h3>
+    <ul id="materias" class="w3-ul w3-white w3-card-4"></ul>
+
+    <h3 class="w3-text-indigo w3-margin-top">Integrantes</h3>
+    <table class="w3-table-all w3-card-4 w3-white">
+      <thead>
+        <tr class="w3-indigo">
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Especialidad</th>
+          <th>Último grado</th>
+          <th>Coincidencias</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { getAcademia } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+    requiereSesion();
+
+    const params = new URLSearchParams(window.location.search);
+    const clave = params.get('clave');
+
+    async function cargar() {
+      const a = await getAcademia(clave);
+      document.getElementById('nombre').textContent = a.nombre;
+      document.getElementById('clave').textContent = a.clave;
+      document.getElementById('descripcion').textContent = a.descripcion || '';
+
+      const ul = document.getElementById('materias');
+      ul.innerHTML = (a.materiasAsignadas || [])
+        .map(m => `<li><i class="fa fa-book w3-text-indigo"></i> ${m}</li>`)
+        .join('');
+
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = '';
+      (a.integrantesData || []).forEach(p => {
+        const materiasProfe = (p.materias || []).map(m => m.nombre);
+        const coinci = (a.materiasAsignadas || []).filter(m => materiasProfe.includes(m));
+        const grado = p.doctorado ? 'Doctorado' : p.maestria ? 'Maestría' : 'Licenciatura';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.id}</td>
+          <td>${p.nombre} ${p.apellido || ''}</td>
+          <td>${p.especialidad || ''}</td>
+          <td>${grado}</td>
+          <td>${coinci.length > 0
+              ? '<span class="w3-tag w3-green">' + coinci.join(', ') + '</span>'
+              : '<span class="w3-tag w3-grey">Ninguna</span>'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

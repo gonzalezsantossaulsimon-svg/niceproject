@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Academias</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
+    <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo">Academias</h1>
+
+    <div id="lista" class="w3-row-padding"></div>
+  </div>
+
+  <script type="module">
+    import { getAcademias, eliminarAcademia } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+    requiereSesion();
+
+    const lista = document.getElementById('lista');
+
+    async function cargar() {
+      const academias = await getAcademias();
+      lista.innerHTML = '';
+      academias.forEach(a => {
+        const col = document.createElement('div');
+        col.className = 'w3-third w3-margin-bottom';
+        col.innerHTML = `
+          <div class="w3-card-4 w3-white w3-padding-16">
+            <h3 class="w3-text-indigo">${a.nombre}</h3>
+            <p class="w3-small w3-text-grey"><b>Clave:</b> ${a.clave}</p>
+            <p>${a.descripcion || ''}</p>
+            <p class="w3-small"><b>Integrantes:</b> ${(a.integrantes || []).length}</p>
+            <p class="w3-small"><b>Materias asignadas:</b> ${(a.materiasAsignadas || []).join(', ')}</p>
+            <div class="w3-margin-top">
+              <a href="academia-detalle.html?clave=${a.clave}" class="w3-button w3-blue w3-small w3-round">
+                <i class="fa fa-eye"></i> Ver
+              </a>
+              <button class="w3-button w3-red w3-small w3-round" data-del="${a.clave}">
+                <i class="fa fa-trash"></i> Eliminar
+              </button>
+            </div>
+          </div>
+        `;
+        lista.appendChild(col);
+      });
+
+      lista.querySelectorAll('[data-del]').forEach(b => {
+        b.addEventListener('click', async () => {
+          const clave = b.getAttribute('data-del');
+          if (confirm(`¿Eliminar la academia ${clave}?`)) {
+            await eliminarAcademia(clave);
+            cargar();
+          }
+        });
+      });
+    }
+
+    cargar();
+  </script>
+</body>
+</html>
