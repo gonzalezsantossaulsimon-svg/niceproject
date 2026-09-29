@@ -97,3 +97,45 @@ export async function getCoincidencias(id) {
   const r = await fetch(`${API_URL}/profesores/${id}/coincidencias`);
   return r.json();
 }
+
+// -------- EVALUACIONES --------
+async function procesarRespuestaEvaluacion(response, mensajePredeterminado) {
+  let resultado;
+  try {
+    resultado = await response.json();
+  } catch {
+    throw new Error(mensajePredeterminado);
+  }
+
+  if (!response.ok) {
+    throw new Error(resultado.error || mensajePredeterminado);
+  }
+
+  return resultado;
+}
+
+export async function crearEvaluacion(data) {
+  const response = await fetch(`${API_URL}/evaluaciones`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return procesarRespuestaEvaluacion(response, 'Error al registrar la evaluación');
+}
+
+export async function getEvaluaciones() {
+  const response = await fetch(`${API_URL}/evaluaciones`);
+  return procesarRespuestaEvaluacion(response, 'Error al obtener las evaluaciones');
+}
+
+export async function getEvaluacionesProfesor(id) {
+  const response = await fetch(`${API_URL}/profesores/${encodeURIComponent(id)}/evaluaciones`);
+  return procesarRespuestaEvaluacion(response, 'Error al obtener las evaluaciones del profesor');
+}
+
+export async function eliminarEvaluacion(id) {
+  const response = await fetch(`${API_URL}/evaluaciones/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+  return procesarRespuestaEvaluacion(response, 'Error al eliminar la evaluación');
+}

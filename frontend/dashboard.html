@@ -14,6 +14,7 @@
     <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
     <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
     <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
+    <a href="evaluaciones.html" class="w3-bar-item w3-button w3-right">Evaluaciones</a>
     <a href="#" id="logout" class="w3-bar-item w3-button w3-right">Salir</a>
   </div>
 
@@ -49,6 +50,18 @@
       </div>
     </div>
 
+    <div class="w3-row-padding w3-margin-top">
+      <div class="w3-third">
+        <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
+          <i class="fa fa-star w3-xxxlarge w3-text-indigo"></i>
+          <h3>Evaluaciones</h3>
+          <p>Total registradas: <b id="totalEvaluaciones">Cargando información...</b></p>
+          <p>Promedio general: <b id="promedioEvaluaciones">Cargando información...</b></p>
+          <a href="evaluaciones.html" class="w3-btn w3-indigo w3-round">Ver evaluaciones</a>
+        </div>
+      </div>
+    </div>
+
     <div id="mensajeError" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
       role="alert" style="display:none;"></div>
 
@@ -64,7 +77,7 @@
   </div>
 
   <script type="module">
-    import { getProfesores, getAcademias, getCoincidencias } from './js/api.js';
+    import { getProfesores, getAcademias, getCoincidencias, getEvaluaciones } from './js/api.js';
     import { requiereSesion, cerrarSesion } from './js/auth.js';
 
     const user = requiereSesion();
@@ -86,6 +99,8 @@
       resumenAcademias: document.getElementById('resumenAcademias'),
       resumenCoincidencias: document.getElementById('resumenCoincidencias'),
       promedioMaterias: document.getElementById('promedioMaterias'),
+      totalEvaluaciones: document.getElementById('totalEvaluaciones'),
+      promedioEvaluaciones: document.getElementById('promedioEvaluaciones'),
       mensajeError: document.getElementById('mensajeError')
     };
 
@@ -106,9 +121,10 @@
 
     async function cargarResumen() {
       const errores = [];
-      const [resultadoProfesores, resultadoAcademias] = await Promise.allSettled([
+      const [resultadoProfesores, resultadoAcademias, resultadoEvaluaciones] = await Promise.allSettled([
         getProfesores(),
-        getAcademias()
+        getAcademias(),
+        getEvaluaciones()
       ]);
 
       let profesores = null;
@@ -146,6 +162,24 @@
         errores.push(`No se pudieron cargar las academias. ${detalle || ''}`.trim());
         establecerTexto(elementos.totalAcademias, 'No disponible');
         establecerTexto(elementos.resumenAcademias, 'No disponible');
+      }
+
+      if (resultadoEvaluaciones.status === 'fulfilled' && Array.isArray(resultadoEvaluaciones.value)) {
+        const evaluaciones = resultadoEvaluaciones.value;
+        const total = evaluaciones.length;
+        establecerTexto(elementos.totalEvaluaciones, String(total));
+        establecerTexto(elementos.promedioEvaluaciones, total === 0
+          ? 'Sin evaluaciones'
+          : `${new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(
+              evaluaciones.reduce((suma, evaluacion) => suma + evaluacion.calificacion, 0) / total
+            )} / 10`);
+      } else {
+        const detalle = resultadoEvaluaciones.status === 'rejected'
+          ? resultadoEvaluaciones.reason?.message
+          : 'La respuesta recibida no es válida.';
+        errores.push(`No se pudieron cargar las evaluaciones. ${detalle || ''}`.trim());
+        establecerTexto(elementos.totalEvaluaciones, 'No disponible');
+        establecerTexto(elementos.promedioEvaluaciones, 'No disponible');
       }
 
       if (profesores) {

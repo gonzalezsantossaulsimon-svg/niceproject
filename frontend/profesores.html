@@ -14,6 +14,7 @@
     <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
     <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
     <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
+    <a href="evaluaciones.html" class="w3-bar-item w3-button w3-right">Evaluaciones</a>
   </div>
 
   <div class="w3-container w3-padding-16">
@@ -169,6 +170,16 @@
         );
 
         const acciones = document.createElement('td');
+        const botonEvaluar = document.createElement('a');
+        botonEvaluar.className = 'w3-button w3-green w3-small w3-round';
+        botonEvaluar.href = `evaluacion-form.html?id=${encodeURIComponent(profesor.id)}`;
+        botonEvaluar.textContent = 'Evaluar';
+
+        const botonEvaluaciones = document.createElement('a');
+        botonEvaluaciones.className = 'w3-button w3-indigo w3-small w3-round';
+        botonEvaluaciones.href = `evaluaciones-profesor.html?id=${encodeURIComponent(profesor.id)}`;
+        botonEvaluaciones.textContent = 'Evaluaciones';
+
         const botonEditar = document.createElement('button');
         botonEditar.type = 'button';
         botonEditar.className = 'w3-button w3-blue w3-small';
@@ -199,7 +210,7 @@
           }
         });
 
-        acciones.append(botonEditar, botonEliminar);
+        acciones.append(botonEvaluar, botonEvaluaciones, botonEditar, botonEliminar);
         tr.appendChild(acciones);
         tbody.appendChild(tr);
       });

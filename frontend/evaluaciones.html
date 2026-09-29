@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evaluaciones</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
+    <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo">Evaluaciones</h1>
+
+    <div id="mensaje" class="w3-panel w3-pale-red w3-border w3-border-red"
+      style="display:none;" role="alert"></div>
+    <p id="estado" class="w3-text-grey" aria-live="polite">Cargando evaluaciones...</p>
+
+    <div class="w3-card-4 w3-white w3-padding-16 w3-margin-top">
+      <div class="w3-row-padding">
+        <div class="w3-half">
+          <label for="ordenarPor"><b>Ordenar por</b></label>
+          <select id="ordenarPor" class="w3-select w3-border">
+            <option value="nombre">Nombre</option>
+            <option value="promedio">Promedio</option>
+            <option value="totalEvaluaciones">Cantidad de evaluaciones</option>
+          </select>
+        </div>
+        <div class="w3-half">
+          <label for="direccion"><b>Dirección</b></label>
+          <select id="direccion" class="w3-select w3-border">
+            <option value="asc">Ascendente</option>
+            <option value="desc">Descendente</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
+      <div class="w3-responsive">
+        <table class="w3-table-all w3-hoverable">
+          <thead>
+            <tr class="w3-indigo">
+              <th>No. empleado</th>
+              <th>Profesor</th>
+              <th>Academia</th>
+              <th>Evaluaciones</th>
+              <th>Promedio</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaEvaluaciones"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getProfesores, getAcademias, getEvaluacionesProfesor } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+
+    requiereSesion();
+
+    const mensaje = document.getElementById('mensaje');
+    const estado = document.getElementById('estado');
+    const tbody = document.getElementById('tablaEvaluaciones');
+    const ordenarPor = document.getElementById('ordenarPor');
+    const direccion = document.getElementById('direccion');
+    let filas = [];
+
+    function agregarCelda(fila, valor) {
+      const celda = document.createElement('td');
+      celda.textContent = valor == null ? '' : String(valor);
+      fila.appendChild(celda);
+    }
+
+    function agregarAccion(contenedor, texto, url, clase) {
+      const enlace = document.createElement('a');
+      enlace.className = `w3-button w3-small w3-round ${clase}`;
+      enlace.href = url;
+      enlace.textContent = texto;
+      contenedor.appendChild(enlace);
+    }
+
+    function renderizar() {
+      const campo = ordenarPor.value;
+      const sentido = direccion.value;
+      const ordenadas = [...filas].sort((a, b) => {
+        let comparacion;
+        if (campo === 'nombre') {
+          const nombreA = `${a.profesor.nombre || ''} ${a.profesor.apellido || ''}`.trim();
+          const nombreB = `${b.profesor.nombre || ''} ${b.profesor.apellido || ''}`.trim();
+          comparacion = nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' });
+        } else {
+          const valorA = campo === 'promedio' ? a.promedio : a.totalEvaluaciones;
+          const valorB = campo === 'promedio' ? b.promedio : b.totalEvaluaciones;
+          const sinDatoA = a.error || valorA === null;
+          const sinDatoB = b.error || valorB === null;
+          if (sinDatoA !== sinDatoB) return sinDatoA ? 1 : -1;
+          comparacion = (valorA || 0) - (valorB || 0);
+        }
+        return sentido === 'desc' ? -comparacion : comparacion;
+      });
+
+      tbody.replaceChildren();
+      if (ordenadas.length === 0) {
+        const fila = document.createElement('tr');
+        const celda = document.createElement('td');
+        celda.colSpan = 6;
+        celda.className = 'w3-center w3-text-grey';
+        celda.textContent = 'No hay profesores para mostrar';
+        fila.appendChild(celda);
+        tbody.appendChild(fila);
+        return;
+      }
+
+      ordenadas.forEach(item => {
+        const fila = document.createElement('tr');
+        const profesor = item.profesor;
+        agregarCelda(fila, profesor.numeroEmpleado);
+        agregarCelda(fila, `${profesor.nombre || ''} ${profesor.apellido || ''}`.trim());
+        agregarCelda(fila, item.academia);
+        agregarCelda(fila, item.error ? 'No disponible' : item.totalEvaluaciones);
+        agregarCelda(fila, item.error
+          ? 'No disponible'
+          : item.promedio === null
+            ? 'Sin evaluaciones'
+            : `${new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(item.promedio)} / 10`);
+
+        const acciones = document.createElement('td');
+        const id = encodeURIComponent(profesor.id);
+        agregarAccion(acciones, 'Evaluar', `evaluacion-form.html?id=${id}`, 'w3-green');
+        agregarAccion(acciones, 'Ver resultados', `evaluaciones-profesor.html?id=${id}`, 'w3-indigo');
+        fila.appendChild(acciones);
+        tbody.appendChild(fila);
+      });
+    }
+
+    async function cargar() {
+      const [resultadoProfesores, resultadoAcademias] = await Promise.allSettled([
+        getProfesores(),
+        getAcademias()
+      ]);
+      const errores = [];
+
+      if (resultadoProfesores.status !== 'fulfilled' || !Array.isArray(resultadoProfesores.value)) {
+        const detalle = resultadoProfesores.status === 'rejected'
+          ? resultadoProfesores.reason?.message
+          : 'La respuesta recibida no es válida.';
+        mensaje.textContent = `No se pudieron cargar los profesores. ${detalle || ''}`.trim();
+        mensaje.style.display = 'block';
+        estado.textContent = 'No fue posible cargar la lista de profesores.';
+        renderizar();
+        return;
+      }
+
+      let academias = [];
+      if (resultadoAcademias.status === 'fulfilled' && Array.isArray(resultadoAcademias.value)) {
+        academias = resultadoAcademias.value;
+      } else {
+        const detalle = resultadoAcademias.status === 'rejected'
+          ? resultadoAcademias.reason?.message
+          : 'La respuesta recibida no es válida.';
+        errores.push(`No se pudieron cargar las academias. ${detalle || ''}`.trim());
+      }
+
+      const resultados = await Promise.all(resultadoProfesores.value.map(async profesor => {
+        const academia = academias.find(item => item.clave === profesor.academiaId);
+        try {
+          const resumen = await getEvaluacionesProfesor(profesor.id);
+          if (resumen.error || !Array.isArray(resumen.evaluaciones)) {
+            throw new Error(resumen.error || 'Respuesta de evaluaciones no válida.');
+          }
+          return {
+            profesor,
+            academia: academia?.nombre || profesor.academiaId || 'No disponible',
+            totalEvaluaciones: resumen.totalEvaluaciones,
+            promedio: resumen.promedio,
+            error: false
+          };
+        } catch {
+          return {
+            profesor,
+            academia: academia?.nombre || profesor.academiaId || 'No disponible',
+            totalEvaluaciones: 0,
+            promedio: null,
+            error: true
+          };
+        }
+      }));
+
+      filas = resultados;
+      const fallidas = resultados.filter(resultado => resultado.error).length;
+      if (fallidas > 0) {
+        errores.push(`No se pudieron cargar evaluaciones de ${fallidas} ${fallidas === 1 ? 'profesor' : 'profesores'}; los demás resultados sí están disponibles.`);
+      }
+
+      mensaje.textContent = errores.join(' ');
+      mensaje.style.display = errores.length > 0 ? 'block' : 'none';
+      estado.textContent = `${filas.length} profesores`;
+      renderizar();
+    }
+
+    ordenarPor.addEventListener('change', renderizar);
+    direccion.addEventListener('change', renderizar);
+    cargar();
+  </script>
+</body>
+</html>

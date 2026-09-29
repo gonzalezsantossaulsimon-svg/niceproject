@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evaluaciones del profesor</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
+    <a href="evaluaciones.html" class="w3-bar-item w3-button w3-right">Evaluaciones</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo" id="nombreProfesor">Resultados de evaluaciones</h1>
+    <p class="w3-text-grey"><b>Número de empleado:</b> <span id="numeroEmpleado">Cargando...</span></p>
+
+    <div id="mensaje" class="w3-panel w3-pale-red w3-border w3-border-red"
+      style="display:none;" role="alert"></div>
+
+    <div class="w3-row-padding w3-margin-top">
+      <div class="w3-half">
+        <div class="w3-card-4 w3-white w3-padding-16 w3-center">
+          <h2 class="w3-large w3-text-indigo">Total de evaluaciones</h2>
+          <p id="totalEvaluaciones" class="w3-xxlarge">Cargando...</p>
+        </div>
+      </div>
+      <div class="w3-half">
+        <div class="w3-card-4 w3-white w3-padding-16 w3-center">
+          <h2 class="w3-large w3-text-indigo">Promedio general</h2>
+          <p id="promedio" class="w3-xxxlarge w3-text-indigo" aria-live="polite">Cargando...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="w3-margin-top">
+      <a id="evaluar" href="#" class="w3-button w3-green w3-round" aria-disabled="true">
+        <i class="fa fa-star"></i> Evaluar profesor
+      </a>
+      <a href="profesores.html" class="w3-button w3-grey w3-round">Volver a profesores</a>
+    </div>
+
+    <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
+      <div class="w3-responsive">
+        <table class="w3-table-all w3-hoverable">
+          <thead>
+            <tr class="w3-indigo">
+              <th>Calificación</th>
+              <th>Comentario</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody id="evaluaciones"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getEvaluacionesProfesor } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+
+    requiereSesion();
+
+    const id = new URLSearchParams(window.location.search).get('id');
+    const nombreProfesor = document.getElementById('nombreProfesor');
+    const numeroEmpleado = document.getElementById('numeroEmpleado');
+    const totalEvaluaciones = document.getElementById('totalEvaluaciones');
+    const promedio = document.getElementById('promedio');
+    const tbody = document.getElementById('evaluaciones');
+    const mensaje = document.getElementById('mensaje');
+    const botonEvaluar = document.getElementById('evaluar');
+
+    function mostrarError(texto) {
+      mensaje.textContent = texto;
+      mensaje.style.display = 'block';
+    }
+
+    function agregarCelda(fila, valor) {
+      const celda = document.createElement('td');
+      celda.textContent = valor == null ? '' : String(valor);
+      fila.appendChild(celda);
+    }
+
+    function formatearFecha(fechaISO) {
+      const fecha = new Date(fechaISO);
+      return Number.isNaN(fecha.getTime())
+        ? 'Fecha no disponible'
+        : fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    async function cargar() {
+      const idProfesor = Number(id);
+      if (!id || !Number.isInteger(idProfesor) || idProfesor <= 0) {
+        mostrarError('El ID del profesor no es válido.');
+        return;
+      }
+
+      botonEvaluar.href = `evaluacion-form.html?id=${encodeURIComponent(idProfesor)}`;
+      botonEvaluar.removeAttribute('aria-disabled');
+
+      try {
+        const resultado = await getEvaluacionesProfesor(idProfesor);
+        const profesor = resultado.profesor;
+        nombreProfesor.textContent = `${profesor.nombre || ''} ${profesor.apellido || ''}`.trim();
+        numeroEmpleado.textContent = profesor.numeroEmpleado || 'No disponible';
+        totalEvaluaciones.textContent = String(resultado.totalEvaluaciones);
+        promedio.textContent = resultado.promedio === null
+          ? 'Sin evaluaciones todavía'
+          : `${new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(resultado.promedio)} / 10`;
+
+        const lista = Array.isArray(resultado.evaluaciones) ? resultado.evaluaciones : [];
+        if (lista.length === 0) {
+          const fila = document.createElement('tr');
+          const celda = document.createElement('td');
+          celda.colSpan = 3;
+          celda.className = 'w3-center w3-text-grey';
+          celda.textContent = 'Sin evaluaciones todavía';
+          fila.appendChild(celda);
+          tbody.appendChild(fila);
+          return;
+        }
+
+        lista.forEach(evaluacion => {
+          const fila = document.createElement('tr');
+          agregarCelda(fila, `${evaluacion.calificacion} / 10`);
+          agregarCelda(fila, evaluacion.comentario || 'Sin comentario');
+          agregarCelda(fila, formatearFecha(evaluacion.fecha));
+          tbody.appendChild(fila);
+        });
+      } catch (error) {
+        mostrarError(error.message || 'No fue posible cargar las evaluaciones.');
+        totalEvaluaciones.textContent = 'No disponible';
+        promedio.textContent = 'No disponible';
+        numeroEmpleado.textContent = 'No disponible';
+      }
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

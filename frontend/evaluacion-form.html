@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evaluar profesor</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
+    <a href="evaluaciones.html" class="w3-bar-item w3-button w3-right">Evaluaciones</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo">Evaluar profesor</h1>
+
+    <div id="mensaje" class="w3-panel w3-pale-red w3-border w3-border-red"
+      style="display:none;" role="alert"></div>
+
+    <div class="w3-card-4 w3-white w3-padding-16 w3-margin-top" style="max-width:800px;">
+      <section id="datosProfesor" class="w3-container w3-pale-blue w3-leftbar w3-border-indigo w3-margin-bottom"
+        style="display:none;" aria-live="polite">
+        <h2 class="w3-large w3-text-indigo" id="nombreProfesor"></h2>
+        <p><b>Número de empleado:</b> <span id="numeroEmpleado"></span></p>
+        <p><b>Especialidad:</b> <span id="especialidad"></span></p>
+      </section>
+
+      <form id="formulario" class="w3-container" novalidate>
+        <label for="calificacion" class="w3-text-indigo"><b>Calificación *</b></label>
+        <input class="w3-input w3-border" id="calificacion" type="number"
+          min="0" max="10" step="0.1" required>
+        <small class="w3-text-grey">Ingresa una calificación entre 0 y 10.</small>
+
+        <label for="comentario" class="w3-text-indigo w3-margin-top"><b>Comentario</b></label>
+        <textarea class="w3-input w3-border" id="comentario" maxlength="500" rows="5"></textarea>
+        <small class="w3-text-grey"><span id="contadorComentario">0</span>/500 caracteres</small>
+
+        <hr>
+        <button type="submit" class="w3-button w3-green w3-round" id="guardar" disabled>
+          <i class="fa fa-save"></i> Guardar evaluación
+        </button>
+        <a href="profesores.html" class="w3-button w3-grey w3-round">Cancelar</a>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getProfesor, crearEvaluacion } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+
+    requiereSesion();
+
+    const parametros = new URLSearchParams(window.location.search);
+    const idProfesor = Number(parametros.get('id'));
+    const mensaje = document.getElementById('mensaje');
+    const formulario = document.getElementById('formulario');
+    const guardar = document.getElementById('guardar');
+    const campoCalificacion = document.getElementById('calificacion');
+    const campoComentario = document.getElementById('comentario');
+    let profesor = null;
+
+    function mostrarError(texto) {
+      mensaje.textContent = texto;
+      mensaje.style.display = 'block';
+      mensaje.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function cargarProfesor() {
+      if (!Number.isInteger(idProfesor) || idProfesor <= 0) {
+        mostrarError('El ID del profesor no es válido.');
+        return;
+      }
+
+      try {
+        profesor = await getProfesor(idProfesor);
+        document.getElementById('nombreProfesor').textContent =
+          `${profesor.nombre || ''} ${profesor.apellido || ''}`.trim();
+        document.getElementById('numeroEmpleado').textContent = profesor.numeroEmpleado || 'No disponible';
+        document.getElementById('especialidad').textContent = profesor.especialidad || 'No especificada';
+        document.getElementById('datosProfesor').style.display = 'block';
+        guardar.disabled = false;
+      } catch (error) {
+        mostrarError(error.message || 'No fue posible cargar el profesor.');
+      }
+    }
+
+    campoComentario.addEventListener('input', () => {
+      document.getElementById('contadorComentario').textContent = String(campoComentario.value.length);
+    });
+
+    formulario.addEventListener('submit', async event => {
+      event.preventDefault();
+      mensaje.textContent = '';
+      mensaje.style.display = 'none';
+
+      const valorCalificacion = campoCalificacion.value.trim();
+      const calificacion = Number(valorCalificacion);
+      if (!valorCalificacion || !Number.isFinite(calificacion) || calificacion < 0 || calificacion > 10) {
+        mostrarError('La calificación debe ser un número entre 0 y 10.');
+        return;
+      }
+      if (campoCalificacion.validity.stepMismatch) {
+        mostrarError('La calificación debe avanzar en incrementos de 0.1.');
+        return;
+      }
+      if (campoComentario.value.length > 500) {
+        mostrarError('El comentario no puede superar 500 caracteres.');
+        return;
+      }
+      if (!profesor) {
+        mostrarError('No se pudo cargar el profesor para esta evaluación.');
+        return;
+      }
+
+      guardar.disabled = true;
+      try {
+        await crearEvaluacion({
+          profesorId: idProfesor,
+          calificacion,
+          comentario: campoComentario.value.trim()
+        });
+        window.location.href = `evaluaciones-profesor.html?id=${encodeURIComponent(idProfesor)}`;
+      } catch (error) {
+        mostrarError(error.message || 'No fue posible guardar la evaluación.');
+        guardar.disabled = false;
+      }
+    });
+
+    cargarProfesor();
+  </script>
+</body>
+</html>

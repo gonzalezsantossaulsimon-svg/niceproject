@@ -342,6 +342,147 @@ app.delete('/api/profesores/:id', async (req, res) => {
 });
 
 // =========================================
+// EVALUACIONES
+// =========================================
+
+app.post('/api/evaluaciones', async (req, res) => {
+  try {
+    const db = await leerDB();
+    const rawProfesorId = req.body?.profesorId;
+    const profesorId = Number(rawProfesorId);
+    const idValido = (typeof rawProfesorId === 'number' && Number.isInteger(rawProfesorId)) ||
+      (typeof rawProfesorId === 'string' && /^\d+$/.test(rawProfesorId.trim()));
+
+    if (!idValido || !Number.isInteger(profesorId) || profesorId <= 0) {
+      return res.status(400).json({ error: 'El ID del profesor no es válido' });
+    }
+
+    const profesor = db.profesores.find(p => p.id === profesorId);
+    if (!profesor) {
+      return res.status(404).json({ error: 'El profesor no existe' });
+    }
+
+    const calificacion = req.body?.calificacion;
+    if (typeof calificacion !== 'number' || !Number.isFinite(calificacion)) {
+      return res.status(400).json({ error: 'La calificación debe ser numérica' });
+    }
+
+    if (calificacion < 0 || calificacion > 10) {
+      return res.status(400).json({ error: 'La calificación debe estar entre 0 y 10' });
+    }
+
+    const comentarioRecibido = req.body?.comentario ?? '';
+    if (typeof comentarioRecibido !== 'string') {
+      return res.status(400).json({ error: 'El comentario debe ser texto' });
+    }
+
+    const comentario = comentarioRecibido.trim();
+    if (comentario.length > 500) {
+      return res.status(400).json({ error: 'El comentario no puede superar 500 caracteres' });
+    }
+
+    if (!Array.isArray(db.evaluaciones)) {
+      db.evaluaciones = [];
+    }
+
+    const id = db.evaluaciones.reduce(
+      (mayor, evaluacion) => Number.isInteger(evaluacion.id) && evaluacion.id > mayor
+        ? evaluacion.id
+        : mayor,
+      0
+    ) + 1;
+
+    const evaluacion = {
+      id,
+      profesorId,
+      calificacion,
+      comentario,
+      fecha: new Date().toISOString()
+    };
+
+    db.evaluaciones.push(evaluacion);
+    await escribirDB(db);
+    res.status(201).json(evaluacion);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al registrar la evaluación' });
+  }
+});
+
+app.get('/api/evaluaciones', async (req, res) => {
+  try {
+    const db = await leerDB();
+    res.json(Array.isArray(db.evaluaciones) ? db.evaluaciones : []);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener las evaluaciones' });
+  }
+});
+
+app.get('/api/profesores/:id/evaluaciones', async (req, res) => {
+  try {
+    const db = await leerDB();
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'ID de profesor inválido' });
+    }
+
+    const profesor = db.profesores.find(p => p.id === id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado' });
+    }
+
+    const evaluaciones = (Array.isArray(db.evaluaciones) ? db.evaluaciones : [])
+      .filter(evaluacion => evaluacion.profesorId === id);
+    const promedio = evaluaciones.length === 0
+      ? null
+      : Math.round((evaluaciones.reduce((suma, evaluacion) => suma + evaluacion.calificacion, 0) /
+        evaluaciones.length + Number.EPSILON) * 100) / 100;
+
+    res.json({
+      profesor: {
+        id: profesor.id,
+        numeroEmpleado: profesor.numeroEmpleado,
+        nombre: profesor.nombre,
+        apellido: profesor.apellido
+      },
+      evaluaciones,
+      totalEvaluaciones: evaluaciones.length,
+      promedio
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener las evaluaciones del profesor' });
+  }
+});
+
+app.delete('/api/evaluaciones/:id', async (req, res) => {
+  try {
+    const db = await leerDB();
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'ID de evaluación inválido' });
+    }
+
+    const evaluaciones = Array.isArray(db.evaluaciones) ? db.evaluaciones : [];
+    const indice = evaluaciones.findIndex(evaluacion => evaluacion.id === id);
+    if (indice === -1) {
+      return res.status(404).json({ error: 'Evaluación no encontrada' });
+    }
+
+    const [eliminada] = evaluaciones.splice(indice, 1);
+    db.evaluaciones = evaluaciones;
+    await escribirDB(db);
+    res.json({ mensaje: 'Evaluación eliminada correctamente', evaluacion: eliminada });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al eliminar la evaluación' });
+  }
+});
+
+// =========================================
 // ACADEMIAS
 // =========================================
 
