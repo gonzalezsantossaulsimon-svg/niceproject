@@ -26,7 +26,7 @@
         <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
           <i class="fa fa-users w3-xxxlarge w3-text-indigo"></i>
           <h3>Profesores</h3>
-          <p>Gestiona la plantilla docente</p>
+          <p id="totalProfesores" aria-live="polite">Cargando información...</p>
           <a href="profesores.html" class="w3-btn w3-indigo w3-round">Entrar</a>
         </div>
       </div>
@@ -34,7 +34,7 @@
         <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
           <i class="fa fa-building w3-xxxlarge w3-text-indigo"></i>
           <h3>Academias</h3>
-          <p>Administra las academias</p>
+          <p id="totalAcademias" aria-live="polite">Cargando información...</p>
           <a href="academias.html" class="w3-btn w3-indigo w3-round">Entrar</a>
         </div>
       </div>
@@ -42,15 +42,31 @@
         <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
           <i class="fa fa-check-circle w3-xxxlarge w3-text-indigo"></i>
           <h3>Coincidencias</h3>
-          <p>Materias afines por academia</p>
+          <p id="totalCoincidencias" aria-live="polite">Cargando información...</p>
+          <p id="profesoresConCoincidencias">Cargando información...</p>
           <a href="profesores.html" class="w3-btn w3-indigo w3-round">Ver</a>
         </div>
+      </div>
+    </div>
+
+    <div id="mensajeError" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
+      role="alert" style="display:none;"></div>
+
+    <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
+      <h2 class="w3-container w3-text-indigo">Resumen del sistema</h2>
+      <div class="w3-container">
+        <p>Profesores: <b id="resumenProfesores">Cargando información...</b></p>
+        <p>Academias: <b id="resumenAcademias">Cargando información...</b></p>
+        <p>Coincidencias: <b id="resumenCoincidencias">Cargando información...</b></p>
+        <p>Promedio de materias por profesor: <b id="promedioMaterias">Cargando información...</b></p>
       </div>
     </div>
   </div>
 
   <script type="module">
+    import { getProfesores, getAcademias, getCoincidencias } from './js/api.js';
     import { requiereSesion, cerrarSesion } from './js/auth.js';
+
     const user = requiereSesion();
     if (user) {
       document.getElementById('bienvenida').textContent = `Bienvenido, ${user.nombre}`;
@@ -60,6 +76,113 @@
       cerrarSesion();
       window.location.href = 'login.html';
     });
+
+    const elementos = {
+      totalProfesores: document.getElementById('totalProfesores'),
+      totalAcademias: document.getElementById('totalAcademias'),
+      totalCoincidencias: document.getElementById('totalCoincidencias'),
+      profesoresConCoincidencias: document.getElementById('profesoresConCoincidencias'),
+      resumenProfesores: document.getElementById('resumenProfesores'),
+      resumenAcademias: document.getElementById('resumenAcademias'),
+      resumenCoincidencias: document.getElementById('resumenCoincidencias'),
+      promedioMaterias: document.getElementById('promedioMaterias'),
+      mensajeError: document.getElementById('mensajeError')
+    };
+
+    function establecerTexto(elemento, texto) {
+      elemento.textContent = texto;
+    }
+
+    function mostrarErrores(errores) {
+      if (errores.length === 0) {
+        elementos.mensajeError.style.display = 'none';
+        elementos.mensajeError.textContent = '';
+        return;
+      }
+
+      elementos.mensajeError.textContent = errores.join(' ');
+      elementos.mensajeError.style.display = 'block';
+    }
+
+    async function cargarResumen() {
+      const errores = [];
+      const [resultadoProfesores, resultadoAcademias] = await Promise.allSettled([
+        getProfesores(),
+        getAcademias()
+      ]);
+
+      let profesores = null;
+
+      if (resultadoProfesores.status === 'fulfilled' && Array.isArray(resultadoProfesores.value)) {
+        profesores = resultadoProfesores.value;
+        const total = profesores.length;
+        establecerTexto(elementos.totalProfesores, `${total} ${total === 1 ? 'profesor registrado' : 'profesores registrados'}`);
+        establecerTexto(elementos.resumenProfesores, String(total));
+
+        const totalMaterias = profesores.reduce(
+          (suma, profesor) => suma + (Array.isArray(profesor.materias) ? profesor.materias.length : 0),
+          0
+        );
+        const promedio = total === 0 ? 0 : totalMaterias / total;
+        establecerTexto(elementos.promedioMaterias, promedio.toFixed(1));
+      } else {
+        const detalle = resultadoProfesores.status === 'rejected'
+          ? resultadoProfesores.reason?.message
+          : 'La respuesta recibida no es válida.';
+        errores.push(`No se pudieron cargar los profesores. ${detalle || ''}`.trim());
+        establecerTexto(elementos.totalProfesores, 'No disponible');
+        establecerTexto(elementos.resumenProfesores, 'No disponible');
+        establecerTexto(elementos.promedioMaterias, 'No disponible');
+      }
+
+      if (resultadoAcademias.status === 'fulfilled' && Array.isArray(resultadoAcademias.value)) {
+        const total = resultadoAcademias.value.length;
+        establecerTexto(elementos.totalAcademias, `${total} ${total === 1 ? 'academia registrada' : 'academias registradas'}`);
+        establecerTexto(elementos.resumenAcademias, String(total));
+      } else {
+        const detalle = resultadoAcademias.status === 'rejected'
+          ? resultadoAcademias.reason?.message
+          : 'La respuesta recibida no es válida.';
+        errores.push(`No se pudieron cargar las academias. ${detalle || ''}`.trim());
+        establecerTexto(elementos.totalAcademias, 'No disponible');
+        establecerTexto(elementos.resumenAcademias, 'No disponible');
+      }
+
+      if (profesores) {
+        const resultadosCoincidencias = await Promise.all(profesores.map(async profesor => {
+          try {
+            const resultado = await getCoincidencias(profesor.id);
+            if (resultado.error || !Array.isArray(resultado.coincidencias)) {
+              throw new Error(resultado.error || 'Respuesta de coincidencias no válida.');
+            }
+            return { total: resultado.coincidencias.length };
+          } catch (error) {
+            return { error };
+          }
+        }));
+
+        const coincidenciasValidas = resultadosCoincidencias.filter(resultado => !resultado.error);
+        const totalCoincidencias = coincidenciasValidas.reduce((suma, resultado) => suma + resultado.total, 0);
+        const profesoresConCoincidencias = coincidenciasValidas.filter(resultado => resultado.total > 0).length;
+        const fallidas = resultadosCoincidencias.length - coincidenciasValidas.length;
+
+        establecerTexto(elementos.totalCoincidencias, `${totalCoincidencias} coincidencias encontradas`);
+        establecerTexto(elementos.profesoresConCoincidencias, `${profesoresConCoincidencias} profesores con coincidencias`);
+        establecerTexto(elementos.resumenCoincidencias, String(totalCoincidencias));
+
+        if (fallidas > 0) {
+          errores.push(`No se pudieron cargar coincidencias de ${fallidas} ${fallidas === 1 ? 'profesor' : 'profesores'}; los totales incluyen solo las consultas correctas.`);
+        }
+      } else {
+        establecerTexto(elementos.totalCoincidencias, 'No disponible');
+        establecerTexto(elementos.profesoresConCoincidencias, 'No disponible');
+        establecerTexto(elementos.resumenCoincidencias, 'No disponible');
+      }
+
+      mostrarErrores(errores);
+    }
+
+    cargarResumen();
   </script>
 </body>
 </html>
