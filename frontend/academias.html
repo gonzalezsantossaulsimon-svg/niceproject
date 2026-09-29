@@ -45,33 +45,91 @@
     }
 
     async function cargar() {
-      const academias = await getAcademias();
-      lista.innerHTML = '';
-      academias.forEach(a => {
-        const col = document.createElement('div');
-        col.className = 'w3-third w3-margin-bottom';
-        col.innerHTML = `
-          <div class="w3-card-4 w3-white w3-padding-16">
-            <h3 class="w3-text-indigo">${a.nombre}</h3>
-            <p class="w3-small w3-text-grey"><b>Clave:</b> ${a.clave}</p>
-            <p>${a.descripcion || ''}</p>
-            <p class="w3-small"><b>Integrantes:</b> ${(a.integrantes || []).length}</p>
-            <p class="w3-small"><b>Materias asignadas:</b> ${(a.materiasAsignadas || []).join(', ')}</p>
-            <div class="w3-margin-top">
-              <a href="academia-detalle.html?clave=${a.clave}" class="w3-button w3-blue w3-small w3-round">
-                <i class="fa fa-eye"></i> Ver
-              </a>
-              <a href="academia-form.html?clave=${a.clave}" class="w3-button w3-amber w3-small w3-round">
-                <i class="fa fa-pencil"></i> Editar
-              </a>
-              <button class="w3-button w3-red w3-small w3-round" data-del="${a.clave}">
-                <i class="fa fa-trash"></i> Eliminar
-              </button>
-            </div>
-          </div>
-        `;
-        lista.appendChild(col);
-      });
+      try {
+        const academias = await getAcademias();
+        if (!Array.isArray(academias)) {
+          throw new Error('La respuesta de academias no es válida.');
+        }
+
+        msg.textContent = '';
+        msg.style.display = 'none';
+        lista.replaceChildren();
+        academias.forEach(a => {
+          const clave = String(a.clave || '');
+          const col = document.createElement('div');
+          col.className = 'w3-third w3-margin-bottom';
+
+          const tarjeta = document.createElement('div');
+          tarjeta.className = 'w3-card-4 w3-white w3-padding-16';
+
+          const nombre = document.createElement('h3');
+          nombre.className = 'w3-text-indigo';
+          nombre.textContent = a.nombre || '';
+
+          const claveTexto = document.createElement('p');
+          claveTexto.className = 'w3-small w3-text-grey';
+          const etiquetaClave = document.createElement('b');
+          etiquetaClave.textContent = 'Clave: ';
+          claveTexto.append(etiquetaClave, document.createTextNode(clave));
+
+          const descripcion = document.createElement('p');
+          descripcion.textContent = a.descripcion || '';
+
+          const integrantes = document.createElement('p');
+          integrantes.className = 'w3-small';
+          const etiquetaIntegrantes = document.createElement('b');
+          etiquetaIntegrantes.textContent = 'Integrantes: ';
+          integrantes.append(
+            etiquetaIntegrantes,
+            document.createTextNode(String((a.integrantes || []).length))
+          );
+
+          const materias = document.createElement('p');
+          materias.className = 'w3-small';
+          const etiquetaMaterias = document.createElement('b');
+          etiquetaMaterias.textContent = 'Materias asignadas: ';
+          materias.append(
+            etiquetaMaterias,
+            document.createTextNode((a.materiasAsignadas || []).join(', '))
+          );
+
+          const acciones = document.createElement('div');
+          acciones.className = 'w3-margin-top';
+
+          const ver = document.createElement('a');
+          ver.href = `academia-detalle.html?clave=${encodeURIComponent(clave)}`;
+          ver.className = 'w3-button w3-blue w3-small w3-round';
+          const iconoVer = document.createElement('i');
+          iconoVer.className = 'fa fa-eye';
+          iconoVer.setAttribute('aria-hidden', 'true');
+          ver.append(iconoVer, document.createTextNode(' Ver'));
+
+          const editar = document.createElement('a');
+          editar.href = `academia-form.html?clave=${encodeURIComponent(clave)}`;
+          editar.className = 'w3-button w3-amber w3-small w3-round';
+          const iconoEditar = document.createElement('i');
+          iconoEditar.className = 'fa fa-pencil';
+          iconoEditar.setAttribute('aria-hidden', 'true');
+          editar.append(iconoEditar, document.createTextNode(' Editar'));
+
+          const eliminar = document.createElement('button');
+          eliminar.type = 'button';
+          eliminar.className = 'w3-button w3-red w3-small w3-round';
+          eliminar.dataset.del = clave;
+          const iconoEliminar = document.createElement('i');
+          iconoEliminar.className = 'fa fa-trash';
+          iconoEliminar.setAttribute('aria-hidden', 'true');
+          eliminar.append(iconoEliminar, document.createTextNode(' Eliminar'));
+
+          acciones.append(ver, editar, eliminar);
+          tarjeta.append(nombre, claveTexto, descripcion, integrantes, materias, acciones);
+          col.appendChild(tarjeta);
+          lista.appendChild(col);
+        });
+      } catch (error) {
+        mostrarError(error.message || 'No fue posible cargar las academias.');
+        return;
+      }
 
       lista.querySelectorAll('[data-del]').forEach(b => {
         b.addEventListener('click', async () => {

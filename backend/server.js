@@ -327,6 +327,12 @@ app.delete('/api/profesores/:id', async (req, res) => {
       );
     });
 
+    if (Array.isArray(db.evaluaciones)) {
+      db.evaluaciones = db.evaluaciones.filter(
+        evaluacion => evaluacion.profesorId !== id
+      );
+    }
+
     await escribirDB(db);
 
     res.json({

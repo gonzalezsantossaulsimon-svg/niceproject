@@ -18,6 +18,8 @@
     <h1 class="w3-text-indigo" id="nombre"></h1>
     <p class="w3-text-grey"><b>Clave:</b> <span id="clave"></span></p>
     <p id="descripcion"></p>
+    <div id="msg" class="w3-panel w3-pale-red w3-border w3-border-red"
+      style="display:none;" role="alert"></div>
 
     <h3 class="w3-text-indigo w3-margin-top">Materias asignadas</h3>
     <ul id="materias" class="w3-ul w3-white w3-card-4"></ul>
@@ -46,35 +48,61 @@
     const clave = params.get('clave');
 
     async function cargar() {
-      const a = await getAcademia(clave);
-      document.getElementById('nombre').textContent = a.nombre;
-      document.getElementById('clave').textContent = a.clave;
-      document.getElementById('descripcion').textContent = a.descripcion || '';
+      const msg = document.getElementById('msg');
+      try {
+        const a = await getAcademia(clave);
+        document.getElementById('nombre').textContent = a.nombre || '';
+        document.getElementById('clave').textContent = a.clave || '';
+        document.getElementById('descripcion').textContent = a.descripcion || '';
 
-      const ul = document.getElementById('materias');
-      ul.innerHTML = (a.materiasAsignadas || [])
-        .map(m => `<li><i class="fa fa-book w3-text-indigo"></i> ${m}</li>`)
-        .join('');
+        const materiasAsignadas = Array.isArray(a.materiasAsignadas) ? a.materiasAsignadas : [];
+        const ul = document.getElementById('materias');
+        ul.replaceChildren();
+        materiasAsignadas.forEach(materia => {
+          const li = document.createElement('li');
+          const icono = document.createElement('i');
+          icono.className = 'fa fa-book w3-text-indigo';
+          icono.setAttribute('aria-hidden', 'true');
+          li.append(icono, document.createTextNode(` ${materia}`));
+          ul.appendChild(li);
+        });
 
-      const tbody = document.getElementById('tbody');
-      tbody.innerHTML = '';
-      (a.integrantesData || []).forEach(p => {
-        const materiasProfe = (p.materias || []).map(m => m.nombre);
-        const coinci = (a.materiasAsignadas || []).filter(m => materiasProfe.includes(m));
-        const grado = p.doctorado ? 'Doctorado' : p.maestria ? 'Maestría' : 'Licenciatura';
+        const tbody = document.getElementById('tbody');
+        tbody.replaceChildren();
+        (a.integrantesData || []).forEach(p => {
+          const materiasProfe = (p.materias || []).map(m => m.nombre);
+          const coincidencias = materiasAsignadas.filter(m => materiasProfe.includes(m));
+          const grado = p.doctorado ? 'Doctorado' : p.maestria ? 'Maestría' : 'Licenciatura';
+          const tr = document.createElement('tr');
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${p.id}</td>
-          <td>${p.nombre} ${p.apellido || ''}</td>
-          <td>${p.especialidad || ''}</td>
-          <td>${grado}</td>
-          <td>${coinci.length > 0
-              ? '<span class="w3-tag w3-green">' + coinci.join(', ') + '</span>'
-              : '<span class="w3-tag w3-grey">Ninguna</span>'}</td>
-        `;
-        tbody.appendChild(tr);
-      });
+          const id = document.createElement('td');
+          id.textContent = String(p.id ?? '');
+          const nombre = document.createElement('td');
+          nombre.textContent = `${p.nombre || ''} ${p.apellido || ''}`.trim();
+          const especialidad = document.createElement('td');
+          especialidad.textContent = p.especialidad || '';
+          const ultimoGrado = document.createElement('td');
+          ultimoGrado.textContent = grado;
+          const coincidenciasCelda = document.createElement('td');
+          const coincidenciasEtiqueta = document.createElement('span');
+          coincidenciasEtiqueta.className = coincidencias.length > 0
+            ? 'w3-tag w3-green'
+            : 'w3-tag w3-grey';
+          coincidenciasEtiqueta.textContent = coincidencias.length > 0
+            ? coincidencias.join(', ')
+            : 'Ninguna';
+          coincidenciasCelda.appendChild(coincidenciasEtiqueta);
+
+          tr.append(id, nombre, especialidad, ultimoGrado, coincidenciasCelda);
+          tbody.appendChild(tr);
+        });
+
+        msg.textContent = '';
+        msg.style.display = 'none';
+      } catch (error) {
+        msg.textContent = error.message || 'No fue posible cargar la academia.';
+        msg.style.display = 'block';
+      }
     }
 
     cargar();

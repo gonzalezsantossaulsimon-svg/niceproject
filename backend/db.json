@@ -7,8 +7,8 @@
                            "apellido":  "Harriett Heys",
                            "especialidad":  "Redes",
                            "licenciatura":  "Ing. en Sistemas",
-                           "maestria":  "MaestrÃ­a en Redes",
-                           "doctorado":  "Doctorado en MatemÃ¡ticas",
+                           "maestria":  "Maestría en Redes",
+                           "doctorado":  "Doctorado en Matemáticas",
                            "sni":  "Ninguno",
                            "perfilPRODEP":  false,
                            "academiaId":  "ACAD01",
@@ -28,16 +28,16 @@
                            "numeroEmpleado":  "EMP011",
                            "nombre":  "Hally Wilby",
                            "apellido":  "Starlin Domerq",
-                           "especialidad":  "MatemÃ¡ticas",
-                           "licenciatura":  "Ing. en ComputaciÃ³n",
-                           "maestria":  "MaestrÃ­a en Ciencias Computacionales",
+                           "especialidad":  "Matemáticas",
+                           "licenciatura":  "Ing. en Computación",
+                           "maestria":  "Maestría en Ciencias Computacionales",
                            "doctorado":  "Doctorado en IA",
                            "sni":  "Nivel 3",
                            "perfilPRODEP":  false,
                            "academiaId":  "ACAD01",
                            "materias":  [
                                             {
-                                                "nombre":  "MatemÃ¡ticas",
+                                                "nombre":  "Matemáticas",
                                                 "nivel":  8
                                             },
                                             {
@@ -53,8 +53,8 @@
                            "apellido":  "Shane Pundy",
                            "especialidad":  "Redes",
                            "licenciatura":  "Ing. en Sistemas",
-                           "maestria":  "MaestrÃ­a en IA",
-                           "doctorado":  "Doctorado en ComputaciÃ³n",
+                           "maestria":  "Maestría en IA",
+                           "doctorado":  "Doctorado en Computación",
                            "sni":  "Nivel 3",
                            "perfilPRODEP":  true,
                            "academiaId":  "ACAD02",
@@ -64,7 +64,7 @@
                                                 "nivel":  10
                                             },
                                             {
-                                                "nombre":  "Seguridad InformÃ¡tica",
+                                                "nombre":  "Seguridad Informática",
                                                 "nivel":  8
                                             }
                                         ]
@@ -75,8 +75,8 @@
                            "nombre":  "Lind Hateley",
                            "apellido":  "Chiquia Bryan",
                            "especialidad":  "Bases de Datos",
-                           "licenciatura":  "Lic. en MatemÃ¡ticas",
-                           "maestria":  "MaestrÃ­a en Ciencias Computacionales",
+                           "licenciatura":  "Lic. en Matemáticas",
+                           "maestria":  "Maestría en Ciencias Computacionales",
                            "doctorado":  "Doctorado en IA",
                            "sni":  "Nivel 1",
                            "perfilPRODEP":  true,
@@ -87,7 +87,7 @@
                                                 "nivel":  9
                                             },
                                             {
-                                                "nombre":  "ProgramaciÃ³n",
+                                                "nombre":  "Programación",
                                                 "nivel":  7
                                             }
                                         ]
@@ -97,16 +97,16 @@
                            "numeroEmpleado":  "EMP002",
                            "nombre":  "Sara-ann D\u0027 Angelo",
                            "apellido":  "Belinda Aujean",
-                           "especialidad":  "MatemÃ¡ticas",
+                           "especialidad":  "Matemáticas",
                            "licenciatura":  "Ing. en Sistemas",
-                           "maestria":  "MaestrÃ­a en Redes",
-                           "doctorado":  "Doctorado en MatemÃ¡ticas",
+                           "maestria":  "Maestría en Redes",
+                           "doctorado":  "Doctorado en Matemáticas",
                            "sni":  "Nivel 3",
                            "perfilPRODEP":  false,
                            "academiaId":  "ACAD02",
                            "materias":  [
                                             {
-                                                "nombre":  "MatemÃ¡ticas",
+                                                "nombre":  "Matemáticas",
                                                 "nivel":  9
                                             },
                                             {
@@ -122,7 +122,7 @@
                            "apellido":  "Leona Ribey",
                            "especialidad":  "Desarrollo Web",
                            "licenciatura":  "Ing. en Software",
-                           "maestria":  "MaestrÃ­a en Ciencias Computacionales",
+                           "maestria":  "Maestría en Ciencias Computacionales",
                            "doctorado":  "Doctorado en Software",
                            "sni":  "Ninguno",
                            "perfilPRODEP":  true,
@@ -133,7 +133,7 @@
                                                 "nivel":  9
                                             },
                                             {
-                                                "nombre":  "ProgramaciÃ³n",
+                                                "nombre":  "Programación",
                                                 "nivel":  8
                                             }
                                         ]
@@ -143,16 +143,16 @@
                            "numeroEmpleado":  "EMP009",
                            "nombre":  "Evan Chesters",
                            "apellido":  "Katharyn Stoate",
-                           "especialidad":  "MatemÃ¡ticas",
-                           "licenciatura":  "Lic. en InformÃ¡tica",
-                           "maestria":  "MaestrÃ­a en Ciencias Computacionales",
+                           "especialidad":  "Matemáticas",
+                           "licenciatura":  "Lic. en Informática",
+                           "maestria":  "Maestría en Ciencias Computacionales",
                            "doctorado":  "Doctorado en IA",
                            "sni":  "Nivel 2",
                            "perfilPRODEP":  true,
                            "academiaId":  "ACAD03",
                            "materias":  [
                                             {
-                                                "nombre":  "MatemÃ¡ticas",
+                                                "nombre":  "Matemáticas",
                                                 "nivel":  8
                                             },
                                             {
@@ -167,9 +167,9 @@
                            "nombre":  "Gwendolyn Fosdyke",
                            "apellido":  "Aldo Farthing",
                            "especialidad":  "Desarrollo Web",
-                           "licenciatura":  "Ing. en ComputaciÃ³n",
-                           "maestria":  "MaestrÃ­a en IA",
-                           "doctorado":  "Doctorado en MatemÃ¡ticas",
+                           "licenciatura":  "Ing. en Computación",
+                           "maestria":  "Maestría en IA",
+                           "doctorado":  "Doctorado en Matemáticas",
                            "sni":  "Candidato",
                            "perfilPRODEP":  true,
                            "academiaId":  "ACAD03",
@@ -189,16 +189,16 @@
                            "numeroEmpleado":  "EMP014",
                            "nombre":  "Lory Gehrels",
                            "apellido":  "Dugald Daykin",
-                           "especialidad":  "Seguridad InformÃ¡tica",
-                           "licenciatura":  "Lic. en MatemÃ¡ticas",
-                           "maestria":  "MaestrÃ­a en IA",
+                           "especialidad":  "Seguridad Informática",
+                           "licenciatura":  "Lic. en Matemáticas",
+                           "maestria":  "Maestría en IA",
                            "doctorado":  "Doctorado en Software",
                            "sni":  "Nivel 2",
                            "perfilPRODEP":  false,
                            "academiaId":  "ACAD02",
                            "materias":  [
                                             {
-                                                "nombre":  "Seguridad InformÃ¡tica",
+                                                "nombre":  "Seguridad Informática",
                                                 "nivel":  9
                                             },
                                             {
@@ -213,9 +213,9 @@
                            "nombre":  "Jareb Kermott",
                            "apellido":  "Clementia Francesconi",
                            "especialidad":  "Redes",
-                           "licenciatura":  "Ing. en ComputaciÃ³n",
-                           "maestria":  "MaestrÃ­a en MatemÃ¡ticas",
-                           "doctorado":  "Doctorado en ComputaciÃ³n",
+                           "licenciatura":  "Ing. en Computación",
+                           "maestria":  "Maestría en Matemáticas",
+                           "doctorado":  "Doctorado en Computación",
                            "sni":  "Ninguno",
                            "perfilPRODEP":  false,
                            "academiaId":  "ACAD04",
@@ -237,8 +237,8 @@
                            "apellido":  "Fair Brandom",
                            "especialidad":  "Sistemas Operativos",
                            "licenciatura":  "Ing. en Software",
-                           "maestria":  "MaestrÃ­a en Ciencias Computacionales",
-                           "doctorado":  "Doctorado en MatemÃ¡ticas",
+                           "maestria":  "Maestría en Ciencias Computacionales",
+                           "doctorado":  "Doctorado en Matemáticas",
                            "sni":  "Candidato",
                            "perfilPRODEP":  false,
                            "academiaId":  "ACAD01",
@@ -248,7 +248,7 @@
                                                 "nivel":  9
                                             },
                                             {
-                                                "nombre":  "ProgramaciÃ³n",
+                                                "nombre":  "Programación",
                                                 "nivel":  5
                                             }
                                         ]
@@ -258,16 +258,16 @@
                            "numeroEmpleado":  "EMP006",
                            "nombre":  "Byrann Bydaway",
                            "apellido":  "Claiborne Freire",
-                           "especialidad":  "MatemÃ¡ticas",
+                           "especialidad":  "Matemáticas",
                            "licenciatura":  "Ing. en Sistemas",
-                           "maestria":  "MaestrÃ­a en Redes",
+                           "maestria":  "Maestría en Redes",
                            "doctorado":  "Doctorado en IA",
                            "sni":  "Nivel 1",
                            "perfilPRODEP":  false,
                            "academiaId":  "ACAD04",
                            "materias":  [
                                             {
-                                                "nombre":  "MatemÃ¡ticas",
+                                                "nombre":  "Matemáticas",
                                                 "nivel":  9
                                             },
                                             {
@@ -283,7 +283,7 @@
                            "apellido":  "Janna Carhart",
                            "especialidad":  "Desarrollo Web",
                            "licenciatura":  "Ing. en Sistemas",
-                           "maestria":  "MaestrÃ­a en MatemÃ¡ticas",
+                           "maestria":  "Maestría en Matemáticas",
                            "doctorado":  "Doctorado en Software",
                            "sni":  "Nivel 1",
                            "perfilPRODEP":  false,
@@ -304,20 +304,20 @@
                            "numeroEmpleado":  "EMP008",
                            "nombre":  "Jerrie Brehat",
                            "apellido":  "Cynthea Lanphier",
-                           "especialidad":  "MatemÃ¡ticas",
-                           "licenciatura":  "Ing. en ComputaciÃ³n",
-                           "maestria":  "MaestrÃ­a en Ciencias Computacionales",
+                           "especialidad":  "Matemáticas",
+                           "licenciatura":  "Ing. en Computación",
+                           "maestria":  "Maestría en Ciencias Computacionales",
                            "doctorado":  "Doctorado en Software",
                            "sni":  "Nivel 3",
                            "perfilPRODEP":  false,
                            "academiaId":  "ACAD03",
                            "materias":  [
                                             {
-                                                "nombre":  "MatemÃ¡ticas",
+                                                "nombre":  "Matemáticas",
                                                 "nivel":  7
                                             },
                                             {
-                                                "nombre":  "ProgramaciÃ³n",
+                                                "nombre":  "Programación",
                                                 "nivel":  8
                                             }
                                         ]
@@ -328,9 +328,9 @@
                            "nombre":  "Perry Santry",
                            "apellido":  "Gibby Carreyette",
                            "especialidad":  "Bases de Datos",
-                           "licenciatura":  "Ing. en ComputaciÃ³n",
-                           "maestria":  "MaestrÃ­a en IA",
-                           "doctorado":  "Doctorado en ComputaciÃ³n",
+                           "licenciatura":  "Ing. en Computación",
+                           "maestria":  "Maestría en IA",
+                           "doctorado":  "Doctorado en Computación",
                            "sni":  "Nivel 3",
                            "perfilPRODEP":  true,
                            "academiaId":  "ACAD04",
@@ -351,7 +351,7 @@
                            "apellido":  "Test",
                            "especialidad":  "Redes",
                            "licenciatura":  "Ing. en Sistemas",
-                           "maestria":  "MaestrÃ­a en Redes",
+                           "maestria":  "Maestría en Redes",
                            "doctorado":  "",
                            "sni":  "Ninguno",
                            "perfilPRODEP":  false,
@@ -373,18 +373,19 @@
                           "integrantes":  [
                                               1,
                                               2,
-                                              11
+                                              11,
+                                              16
                                           ],
                           "materiasAsignadas":  [
                                                     "Redes",
                                                     "Sistemas Operativos",
-                                                    "ProgramaciÃ³n"
+                                                    "Programación"
                                                 ]
                       },
                       {
                           "clave":  "ACAD02",
                           "nombre":  "Academia de Redes",
-                          "descripcion":  "Academia dedicada al estudio de redes, seguridad informÃ¡tica y matemÃ¡ticas aplicadas.",
+                          "descripcion":  "Academia dedicada al estudio de redes, seguridad informática y matemáticas aplicadas.",
                           "integrantes":  [
                                               3,
                                               5,
@@ -393,14 +394,14 @@
                                           ],
                           "materiasAsignadas":  [
                                                     "Redes",
-                                                    "Seguridad InformÃ¡tica",
-                                                    "MatemÃ¡ticas"
+                                                    "Seguridad Informática",
+                                                    "Matemáticas"
                                                 ]
                       },
                       {
                           "clave":  "ACAD03",
-                          "nombre":  "Academia de MatemÃ¡ticas",
-                          "descripcion":  "Academia orientada a las matemÃ¡ticas, la IA y las bases de datos.",
+                          "nombre":  "Academia de Matemáticas",
+                          "descripcion":  "Academia orientada a las matemáticas, la IA y las bases de datos.",
                           "integrantes":  [
                                               4,
                                               7,
@@ -408,7 +409,7 @@
                                               14
                                           ],
                           "materiasAsignadas":  [
-                                                    "MatemÃ¡ticas",
+                                                    "Matemáticas",
                                                     "Inteligencia Artificial",
                                                     "Bases de Datos"
                                                 ]
@@ -416,7 +417,7 @@
                       {
                           "clave":  "ACAD04",
                           "nombre":  "Academia de Software",
-                          "descripcion":  "Academia enfocada en desarrollo de software, bases de datos y programaciÃ³n.",
+                          "descripcion":  "Academia enfocada en desarrollo de software, bases de datos y programación.",
                           "integrantes":  [
                                               10,
                                               12,
@@ -424,7 +425,7 @@
                                               15
                                           ],
                           "materiasAsignadas":  [
-                                                    "ProgramaciÃ³n",
+                                                    "Programación",
                                                     "Bases de Datos",
                                                     "Desarrollo Web"
                                                 ]

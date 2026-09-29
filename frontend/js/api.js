@@ -42,11 +42,25 @@ export async function eliminarProfesor(id) {
 // -------- ACADEMIAS --------
 export async function getAcademias() {
   const r = await fetch(`${API_URL}/academias`);
+  if (!r.ok) {
+    let resultado;
+    try {
+      resultado = await r.json();
+    } catch {}
+    throw new Error(resultado?.error || 'Error al obtener las academias');
+  }
   return r.json();
 }
 
 export async function getAcademia(clave) {
   const r = await fetch(`${API_URL}/academias/${clave}`);
+  if (!r.ok) {
+    let resultado;
+    try {
+      resultado = await r.json();
+    } catch {}
+    throw new Error(resultado?.error || 'Error al obtener la academia');
+  }
   return r.json();
 }
 
