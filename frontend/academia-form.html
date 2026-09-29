@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulario Academia</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large">
+      <i class="fa fa-graduation-cap"></i> NiceProject
+    </span>
+    <a href="academias.html" class="w3-bar-item w3-button w3-right">Volver</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo" id="titulo">Nueva Academia</h1>
+
+    <div class="w3-card-4 w3-white w3-padding-16 w3-margin-top" style="max-width:800px;">
+      <form id="form" class="w3-container" novalidate>
+        <label class="w3-text-indigo"><b>Clave *</b></label>
+        <input class="w3-input w3-border" id="clave" type="text" maxlength="10"
+          placeholder="Ejemplo: ACAD01" autocomplete="off" required>
+
+        <label class="w3-text-indigo w3-margin-top"><b>Nombre *</b></label>
+        <input class="w3-input w3-border" id="nombre" type="text" maxlength="100" required>
+
+        <label class="w3-text-indigo w3-margin-top"><b>Descripción</b></label>
+        <textarea class="w3-input w3-border" id="descripcion" maxlength="500" rows="4"></textarea>
+
+        <label class="w3-text-indigo w3-margin-top"><b>Materias asignadas</b></label>
+        <textarea class="w3-input w3-border" id="materiasAsignadas" rows="5"
+          placeholder="Escribe una materia por línea"></textarea>
+
+        <hr>
+
+        <button type="submit" class="w3-btn w3-green w3-round" id="btnGuardar">
+          <i class="fa fa-save"></i> Guardar
+        </button>
+        <a href="academias.html" class="w3-btn w3-grey w3-round">Cancelar</a>
+
+        <div id="msg" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
+          style="display:none;" role="alert"></div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getAcademia, crearAcademia, actualizarAcademia } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+
+    requiereSesion();
+
+    const params = new URLSearchParams(window.location.search);
+    const claveEdicion = params.get('clave');
+    const form = document.getElementById('form');
+    const clave = document.getElementById('clave');
+    const msg = document.getElementById('msg');
+    const btnGuardar = document.getElementById('btnGuardar');
+
+    function mostrarError(mensaje) {
+      msg.textContent = mensaje;
+      msg.style.display = 'block';
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    clave.addEventListener('input', () => {
+      clave.value = clave.value
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 10);
+    });
+
+    async function cargarAcademia() {
+      if (!claveEdicion) return;
+
+      document.getElementById('titulo').textContent = 'Editar Academia';
+      btnGuardar.disabled = true;
+
+      try {
+        const academia = await getAcademia(claveEdicion);
+        if (academia.error) throw new Error(academia.error);
+
+        clave.value = academia.clave || claveEdicion;
+        clave.readOnly = true;
+        document.getElementById('nombre').value = academia.nombre || '';
+        document.getElementById('descripcion').value = academia.descripcion || '';
+        document.getElementById('materiasAsignadas').value =
+          (academia.materiasAsignadas || []).join('\n');
+        btnGuardar.disabled = false;
+      } catch (error) {
+        mostrarError(error.message || 'No fue posible cargar la academia.');
+      }
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      msg.textContent = '';
+      msg.style.display = 'none';
+
+      const data = {
+        nombre: document.getElementById('nombre').value.trim(),
+        descripcion: document.getElementById('descripcion').value.trim(),
+        materiasAsignadas: document.getElementById('materiasAsignadas').value
+          .split('\n')
+          .map(materia => materia.trim())
+          .filter(Boolean)
+      };
+
+      if (!claveEdicion) data.clave = clave.value.trim();
+
+      if ((!claveEdicion && !data.clave) || !data.nombre) {
+        mostrarError('La clave y el nombre son obligatorios.');
+        return;
+      }
+
+      btnGuardar.disabled = true;
+
+      try {
+        if (claveEdicion) {
+          await actualizarAcademia(claveEdicion, data);
+        } else {
+          await crearAcademia(data);
+        }
+        window.location.href = 'academias.html';
+      } catch (error) {
+        mostrarError(error.message || 'No fue posible guardar la academia.');
+      } finally {
+        btnGuardar.disabled = false;
+      }
+    });
+
+    cargarAcademia();
+  </script>
+</body>
+</html>

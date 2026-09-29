@@ -60,6 +60,22 @@ export async function crearAcademia(data) {
   return r.json();
 }
 
+export async function actualizarAcademia(clave, data) {
+  const r = await fetch(`${API_URL}/academias/${clave}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  if (!r.ok) {
+    throw new Error(
+      (await r.json()).error || 'Error al actualizar la academia'
+    );
+  }
+
+  return r.json();
+}
+
 export async function eliminarAcademia(clave) {
   const r = await fetch(`${API_URL}/academias/${clave}`, { method: 'DELETE' });
   return r.json();

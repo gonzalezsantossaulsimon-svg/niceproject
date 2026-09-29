@@ -19,6 +19,13 @@
   <div class="w3-container w3-padding-16">
     <h1 class="w3-text-indigo">Academias</h1>
 
+    <a href="academia-form.html" class="w3-button w3-green w3-round w3-margin-bottom">
+      <i class="fa fa-plus"></i> Nueva academia
+    </a>
+
+    <div id="msg" class="w3-panel w3-pale-red w3-border w3-border-red"
+      style="display:none;" role="alert"></div>
+
     <div id="lista" class="w3-row-padding"></div>
   </div>
 
@@ -28,6 +35,13 @@
     requiereSesion();
 
     const lista = document.getElementById('lista');
+    const msg = document.getElementById('msg');
+
+    function mostrarError(mensaje) {
+      msg.textContent = mensaje;
+      msg.style.display = 'block';
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
     async function cargar() {
       const academias = await getAcademias();
@@ -46,6 +60,9 @@
               <a href="academia-detalle.html?clave=${a.clave}" class="w3-button w3-blue w3-small w3-round">
                 <i class="fa fa-eye"></i> Ver
               </a>
+              <a href="academia-form.html?clave=${a.clave}" class="w3-button w3-amber w3-small w3-round">
+                <i class="fa fa-pencil"></i> Editar
+              </a>
               <button class="w3-button w3-red w3-small w3-round" data-del="${a.clave}">
                 <i class="fa fa-trash"></i> Eliminar
               </button>
@@ -59,8 +76,16 @@
         b.addEventListener('click', async () => {
           const clave = b.getAttribute('data-del');
           if (confirm(`¿Eliminar la academia ${clave}?`)) {
-            await eliminarAcademia(clave);
-            cargar();
+            msg.textContent = '';
+            msg.style.display = 'none';
+
+            try {
+              const resultado = await eliminarAcademia(clave);
+              if (resultado.error) throw new Error(resultado.error);
+              await cargar();
+            } catch (error) {
+              mostrarError(error.message || 'No fue posible eliminar la academia.');
+            }
           }
         });
       });
