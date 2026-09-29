@@ -23,6 +23,45 @@
     </button>
 
     <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
+      <div class="w3-row-padding">
+        <div class="w3-col l4 m6 w3-margin-bottom">
+          <label for="busqueda"><b>Buscar</b></label>
+          <input class="w3-input w3-border" id="busqueda" type="search"
+            placeholder="Nombre, empleado o especialidad">
+        </div>
+        <div class="w3-col l3 m6 w3-margin-bottom">
+          <label for="filtroAcademia"><b>Academia</b></label>
+          <select class="w3-select w3-border" id="filtroAcademia">
+            <option value="">Todas las academias</option>
+            <option value="ACAD01">ACAD01</option>
+            <option value="ACAD02">ACAD02</option>
+            <option value="ACAD03">ACAD03</option>
+            <option value="ACAD04">ACAD04</option>
+          </select>
+        </div>
+        <div class="w3-col l3 m6 w3-margin-bottom">
+          <label for="ordenarPor"><b>Ordenar por</b></label>
+          <select class="w3-select w3-border" id="ordenarPor">
+            <option value="id">ID</option>
+            <option value="numeroEmpleado">Número de empleado</option>
+            <option value="nombre">Nombre</option>
+          </select>
+        </div>
+        <div class="w3-col l2 m6 w3-margin-bottom">
+          <label for="direccionOrden"><b>Dirección</b></label>
+          <select class="w3-select w3-border" id="direccionOrden">
+            <option value="asc">Ascendente</option>
+            <option value="desc">Descendente</option>
+          </select>
+        </div>
+      </div>
+      <p class="w3-container w3-text-grey" id="contador" aria-live="polite"></p>
+    </div>
+
+    <div id="msg" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
+      style="display:none;" role="alert"></div>
+
+    <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
       <table class="w3-table-all w3-hoverable">
         <thead>
           <tr class="w3-indigo">
@@ -47,49 +86,140 @@
     requiereSesion();
 
     const tbody = document.getElementById('tbody');
+    const busqueda = document.getElementById('busqueda');
+    const filtroAcademia = document.getElementById('filtroAcademia');
+    const ordenarPor = document.getElementById('ordenarPor');
+    const direccionOrden = document.getElementById('direccionOrden');
+    const contador = document.getElementById('contador');
+    const msg = document.getElementById('msg');
+    let profesores = [];
 
-    async function cargar() {
-      const profes = await getProfesores();
-      tbody.innerHTML = '';
-      profes.forEach(p => {
-        const materias = (p.materias || [])
-          .map(m => `${m.nombre} (${m.nivel})`)
+    function mostrarError(mensaje) {
+      msg.textContent = mensaje;
+      msg.style.display = 'block';
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function crearCelda(valor) {
+      const td = document.createElement('td');
+      td.textContent = valor == null ? '' : String(valor);
+      return td;
+    }
+
+    function renderizar() {
+      const termino = busqueda.value.trim().toLocaleLowerCase();
+      const academiaSeleccionada = filtroAcademia.value;
+      const campoOrden = ordenarPor.value;
+      const direccion = direccionOrden.value;
+
+      const filtrados = profesores.filter(profesor => {
+        const coincideBusqueda = !termino || [
+          profesor.nombre,
+          profesor.apellido,
+          profesor.numeroEmpleado,
+          profesor.especialidad
+        ].some(valor => String(valor || '').toLocaleLowerCase().includes(termino));
+        const coincideAcademia = !academiaSeleccionada ||
+          profesor.academiaId === academiaSeleccionada;
+        return coincideBusqueda && coincideAcademia;
+      });
+
+      filtrados.sort((a, b) => {
+        let comparacion;
+        if (campoOrden === 'id') {
+          comparacion = Number(a.id) - Number(b.id);
+        } else {
+          comparacion = String(a[campoOrden] || '').localeCompare(
+            String(b[campoOrden] || ''),
+            'es',
+            { numeric: true, sensitivity: 'base' }
+          );
+        }
+        return direccion === 'desc' ? -comparacion : comparacion;
+      });
+
+      contador.textContent = `Mostrando ${filtrados.length} de ${profesores.length} profesores`;
+      tbody.replaceChildren();
+
+      if (filtrados.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 8;
+        td.className = 'w3-center w3-text-grey';
+        td.textContent = 'No se encontraron profesores';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+
+      filtrados.forEach(profesor => {
+        const tr = document.createElement('tr');
+        const materias = (profesor.materias || [])
+          .map(materia => `${materia.nombre} (${materia.nivel})`)
           .join(', ');
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${p.id}</td>
-          <td>${p.numeroEmpleado}</td>
-          <td>${p.nombre} ${p.apellido}</td>
-          <td>${p.especialidad}</td>
-          <td>${p.ultimoGrado}</td>
-          <td>${p.academiaId}</td>
-          <td>${materias}</td>
-          <td>
-            <button class="w3-button w3-blue w3-small" data-edit="${p.id}"><i class="fa fa-pencil"></i></button>
-            <button class="w3-button w3-red w3-small" data-del="${p.id}"><i class="fa fa-trash"></i></button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
+        tr.append(
+          crearCelda(profesor.id),
+          crearCelda(profesor.numeroEmpleado),
+          crearCelda(`${profesor.nombre || ''} ${profesor.apellido || ''}`.trim()),
+          crearCelda(profesor.especialidad),
+          crearCelda(profesor.ultimoGrado),
+          crearCelda(profesor.academiaId),
+          crearCelda(materias)
+        );
 
-      // Eventos
-      tbody.querySelectorAll('[data-edit]').forEach(b => {
-        b.addEventListener('click', () => {
-          const id = b.getAttribute('data-edit');
-          window.location.href = `profesor-form.html?id=${id}`;
+        const acciones = document.createElement('td');
+        const botonEditar = document.createElement('button');
+        botonEditar.type = 'button';
+        botonEditar.className = 'w3-button w3-blue w3-small';
+        botonEditar.title = 'Editar profesor';
+        botonEditar.setAttribute('aria-label', `Editar profesor ${profesor.id}`);
+        botonEditar.innerHTML = '<i class="fa fa-pencil" aria-hidden="true"></i>';
+        botonEditar.addEventListener('click', () => {
+          window.location.href = `profesor-form.html?id=${encodeURIComponent(profesor.id)}`;
         });
-      });
-      tbody.querySelectorAll('[data-del]').forEach(b => {
-        b.addEventListener('click', async () => {
-          const id = b.getAttribute('data-del');
-          if (confirm(`¿Eliminar al profesor #${id}?`)) {
-            await eliminarProfesor(id);
-            cargar();
+
+        const botonEliminar = document.createElement('button');
+        botonEliminar.type = 'button';
+        botonEliminar.className = 'w3-button w3-red w3-small';
+        botonEliminar.title = 'Eliminar profesor';
+        botonEliminar.setAttribute('aria-label', `Eliminar profesor ${profesor.id}`);
+        botonEliminar.innerHTML = '<i class="fa fa-trash" aria-hidden="true"></i>';
+        botonEliminar.addEventListener('click', async () => {
+          if (confirm(`¿Eliminar al profesor #${profesor.id}?`)) {
+            msg.textContent = '';
+            msg.style.display = 'none';
+
+            try {
+              await eliminarProfesor(profesor.id);
+              await cargar();
+            } catch (error) {
+              mostrarError(error.message || 'No se pudo eliminar al profesor.');
+            }
           }
         });
+
+        acciones.append(botonEditar, botonEliminar);
+        tr.appendChild(acciones);
+        tbody.appendChild(tr);
       });
     }
+
+    async function cargar() {
+      try {
+        profesores = await getProfesores();
+        msg.textContent = '';
+        msg.style.display = 'none';
+        renderizar();
+      } catch (error) {
+        mostrarError(`No se pudieron cargar los profesores. ${error.message || ''}`.trim());
+        contador.textContent = 'No se pudieron cargar los profesores';
+      }
+    }
+
+    [busqueda, filtroAcademia, ordenarPor, direccionOrden].forEach(control => {
+      control.addEventListener(control === busqueda ? 'input' : 'change', renderizar);
+    });
 
     cargar();
   </script>
