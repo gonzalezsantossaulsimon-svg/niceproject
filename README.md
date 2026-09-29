@@ -1,42 +1,34 @@
-# NiceProject — Sistema de Gestión de Profesores y Academias
+# NiceProject — Sistema de Gestión y Evaluación Docente
 
-Proyecto desarrollado para la materia de **Desarrollo Rápido de Aplicaciones**.
+Proyecto académico para la materia de Desarrollo Rápido de Aplicaciones.
 
-## 📌 Descripción
+## Descripción
 
-NiceProject es un sistema universitario orientado a la gestión de información de profesores y academias.
+Sistema web académico para administrar profesores y academias, consultar coincidencias entre materias y academias, y registrar evaluaciones docentes con calificaciones de 0 a 10.
 
-El sistema permite administrar datos académicos y profesionales de los docentes, así como consultar la relación entre profesores, materias y academias.
+## Funcionalidades actuales
 
-Actualmente el proyecto cuenta con una interfaz web y un backend desarrollado con Node.js y Express.
+- Inicio de sesión de demostración.
+- Dashboard con estadísticas reales de profesores, academias, coincidencias y evaluaciones.
+- Gestión de profesores: crear, editar, consultar y eliminar.
+- Búsqueda de profesores, filtro por academia y ordenamiento.
+- Gestión de academias: crear, editar, consultar y eliminar.
+- Consulta de coincidencias entre las materias de cada profesor y su academia.
+- Evaluaciones docentes con calificaciones de 0 a 10 y comentarios opcionales.
+- Consulta del promedio de evaluación por profesor y listado general de evaluaciones.
+- Validaciones en el frontend y backend para los datos principales.
 
-## 🎯 Objetivo
+## Tecnologías
 
-Desarrollar una aplicación que permita gestionar de forma organizada la información de los profesores de una facultad, incluyendo datos como:
+- HTML5.
+- JavaScript ES Modules.
+- W3CSS.
+- Node.js y Express.
+- CORS.
+- JSON como almacenamiento del prototipo (`backend/db.json`).
+- Git y GitHub para control de versiones.
 
-- Número de empleado.
-- Nombre completo.
-- Especialidad.
-- Licenciatura.
-- Maestría.
-- Doctorado.
-- Academia.
-- Materias impartidas.
-- Información académica adicional.
-
-El proyecto también servirá como base para incorporar nuevas funcionalidades durante el desarrollo de la materia.
-
-## 🛠️ Tecnologías utilizadas
-
-- **Backend:** Node.js + Express.
-- **Frontend:** HTML + W3.CSS + JavaScript.
-- **Datos:** archivo `db.json`.
-- **Autenticación:** inicio de sesión simple con `localStorage`.
-- **Control de versiones:** Git.
-- **Repositorio:** GitHub.
-- **Entorno de desarrollo:** Visual Studio Code.
-
-## 📂 Estructura del proyecto
+## Estructura del proyecto
 
 ```text
 niceproject/
@@ -46,83 +38,49 @@ niceproject/
 │   ├── package.json
 │   ├── README.md
 │   └── server.js
-│
 ├── frontend/
 │   ├── js/
+│   │   ├── api.js
+│   │   └── auth.js
 │   ├── academia-detalle.html
+│   ├── academia-form.html
 │   ├── academias.html
 │   ├── dashboard.html
+│   ├── evaluacion-form.html
+│   ├── evaluaciones-profesor.html
+│   ├── evaluaciones.html
 │   ├── login.html
 │   ├── profesor-form.html
 │   └── profesores.html
-│
-├── .gitignore
 └── README.md
 ```
 
-## ✅ Funcionalidades actuales
+## Ejecución
 
-- Inicio de sesión.
-- Consulta de profesores.
-- Registro de profesores.
-- Edición de información de profesores.
-- Consulta de academias.
-- Consulta del detalle de una academia.
-- Asociación de profesores con materias.
-- Comunicación entre frontend y backend mediante API.
-- Almacenamiento temporal de datos en `db.json`.
-
-## 👥 Integrantes del equipo
-
-1. Saul Simon Gonzalez Santos
-2. Alessandro Farid Vazquez Cortes
-3. Kevin Alejandro Blanco Mendoza
-4. Gerson David Dzuc Chable
-
-## ▶️ Ejecución del proyecto
-
-Primero se debe entrar a la carpeta del backend:
+Se requiere Node.js y npm. Desde la raíz del proyecto, entra al backend, instala las dependencias e inicia el servidor:
 
 ```bash
 cd backend
-```
-
-Después instalar las dependencias:
-
-```bash
 npm install
-```
-
-Para iniciar el servidor:
-
-```bash
 npm start
 ```
 
-El backend se ejecutará en:
+La API queda disponible en `http://localhost:3000`. Mantén el servidor activo y abre `frontend/` mediante Live Server desde Visual Studio Code.
 
-```text
-http://localhost:3000
-```
+## Credenciales de demostración
 
-El frontend puede ejecutarse utilizando **Live Server** desde Visual Studio Code.
+- Usuario: `admin`
+- Contraseña: `admin123`
 
-## 🌐 Control de versiones
+Son credenciales únicamente para el prototipo académico. No deben utilizarse como mecanismo de autenticación para un sistema de producción.
 
-El proyecto utiliza Git y GitHub para el control de versiones y trabajo colaborativo.
+## Equipo
 
-Flujo básico de trabajo:
+- Saul Simon Gonzalez Santos — líder.
+- Alessandro Farid Vazquez Cortes.
+- Kevin Alejandro Blanco Mendoza.
+- Gerson David Dzuc Chable.
 
-```bash
-git pull
-git status
-git add .
-git commit -m "Descripcion del cambio"
-git push
-```
+## Estado
 
-## 📚 Estado del proyecto
-
-El proyecto se encuentra actualmente en desarrollo.
-
-Durante las siguientes etapas se podrán agregar nuevas funcionalidades, validaciones, mejoras en la interfaz y nuevas reglas del negocio.
+Proyecto académico en desarrollo.
