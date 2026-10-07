@@ -1,6 +1,6 @@
 # API de NiceProject
 
-Backend REST del sistema académico NiceProject, implementado con Node.js y Express. Los datos del prototipo se leen y guardan en `db.json`. El servidor habilita CORS y recibe cuerpos JSON.
+Backend REST del sistema académico NiceProject, implementado con Node.js y Express. La aplicación usa SQLite como almacenamiento principal y conserva `db.json` como respaldo inicial y fuente de migración.
 
 ## Ejecución
 
@@ -8,57 +8,75 @@ Desde la carpeta `backend/`:
 
 ```bash
 npm install
+npm run migrate
 npm start
 ```
 
 El servidor escucha en `http://localhost:3000`. La ruta `GET /` devuelve un mensaje de estado de la API.
 
+## Base de datos y migración
+
+El archivo principal es `backend/niceproject.db`. Se inicializa desde `backend/database.js` y se crea la estructura con SQL ejecutado al arrancar el backend.
+
+La migración inicial desde el prototipo JSON se realiza con:
+
+```bash
+npm run migrate
+```
+
+Este comando lee `db.json`, importa los datos en SQLite y guarda un registro en la tabla `migrations` para que la importación sea idempotente y no duplique registros si se vuelve a ejecutar.
+
+## Tablas principales
+
+- `usuarios`: cuenta de acceso del prototipo.
+- `academias`: academias con clave única.
+- `profesores`: información de profesores con FK a academias.
+- `materias_profesor`: materias propias de cada profesor y su nivel.
+- `materias_academia`: materias asignadas a cada academia.
+- `evaluaciones`: calificaciones y comentarios registradas para profesores.
+
+Se usan foreign keys y restricciones para mantener integridad y evitar datos inconsistentes.
+
 ## Rutas
 
 ### Profesores
 
-| Método y ruta | Descripción |
-| --- | --- |
-| `GET /api/profesores` | Lista un resumen de profesores, incluido su último grado, academia y materias. |
-| `GET /api/profesores/:id` | Devuelve el registro completo del profesor. |
-| `POST /api/profesores` | Crea un profesor y asigna el siguiente ID disponible. |
-| `PUT /api/profesores/:id` | Actualiza un profesor existente y sincroniza su pertenencia a academias si cambia de academia. |
-| `DELETE /api/profesores/:id` | Elimina el profesor y lo retira de las listas de integrantes de academias. |
-| `GET /api/profesores/:id/coincidencias` | Devuelve las materias compartidas por el profesor y su academia. |
+- `GET /api/profesores`
+- `GET /api/profesores/:id`
+- `POST /api/profesores`
+- `PUT /api/profesores/:id`
+- `DELETE /api/profesores/:id`
+- `GET /api/profesores/:id/coincidencias`
 
-Las altas y actualizaciones requieren número de empleado, nombre, apellido y academia existentes. El número debe seguir el formato `EMP` más tres dígitos y ser único. Las materias se reciben como arreglo, no deben repetirse y cada nivel debe ser un entero de 0 a 10. Los IDs no enteros producen `400`; los profesores inexistentes producen `404`.
+Las altas y actualizaciones requieren número de empleado, nombre, apellido y academia existentes. El formato del empleado debe ser `EMP` seguido de tres dígitos. Las materias se reciben como arreglo, no deben repetirse y cada nivel debe ser un entero entre 0 y 10.
 
 ### Academias
 
-| Método y ruta | Descripción |
-| --- | --- |
-| `GET /api/academias` | Lista las academias. |
-| `GET /api/academias/:clave` | Devuelve una academia e incluye los datos de sus integrantes. |
-| `POST /api/academias` | Crea una academia. |
-| `PUT /api/academias/:clave` | Actualiza una academia existente. |
-| `DELETE /api/academias/:clave` | Elimina una academia si no tiene profesores asignados. |
+- `GET /api/academias`
+- `GET /api/academias/:clave`
+- `POST /api/academias`
+- `PUT /api/academias/:clave`
+- `DELETE /api/academias/:clave`
 
-La clave se normaliza a mayúsculas. Para crear una academia, clave y nombre son obligatorios, la clave admite hasta 10 caracteres y no puede estar duplicada. En las altas y actualizaciones, `integrantes` y `materiasAsignadas` se mantienen como arreglos. No se permite eliminar una academia con profesores asignados (`400`); una clave inexistente devuelve `404`.
+La clave se normaliza a mayúsculas. Para crear una academia, clave y nombre son obligatorios; la clave admite hasta 10 caracteres y no puede estar duplicada. La pertenencia de profesores se deduce desde `profesores.academiaId` y no se duplica físicamente.
 
 ### Evaluaciones
 
-| Método y ruta | Descripción |
-| --- | --- |
-| `GET /api/evaluaciones` | Devuelve todas las evaluaciones registradas. |
-| `POST /api/evaluaciones` | Registra una evaluación y responde `201` con el registro creado. |
-| `GET /api/profesores/:id/evaluaciones` | Devuelve el profesor, sus evaluaciones, el total y el promedio. Sin evaluaciones, el promedio es `null`; de lo contrario se redondea a dos decimales como máximo. |
-| `DELETE /api/evaluaciones/:id` | Elimina una evaluación existente. |
+- `GET /api/evaluaciones`
+- `POST /api/evaluaciones`
+- `GET /api/profesores/:id/evaluaciones`
+- `DELETE /api/evaluaciones/:id`
 
-Para registrar una evaluación, `profesorId` debe ser un entero positivo correspondiente a un profesor existente. `calificacion` debe ser numérica y estar entre 0 y 10; se aceptan decimales. `comentario` es opcional, se recorta con `trim()` y puede tener hasta 500 caracteres. El ID se genera como el ID máximo existente más uno y `fecha` se genera en el backend en formato ISO. Los IDs inválidos producen `400`; recursos inexistentes producen `404`.
+La calificación acepta decimales entre 0 y 10; el comentario se recorta y queda limitado a 500 caracteres. `fecha` se genera en el backend con `new Date().toISOString()`.
 
 ### Autenticación
 
-| Método y ruta | Descripción |
-| --- | --- |
-| `POST /api/login` | Recibe `username` y `password` y devuelve los datos públicos de la cuenta si coinciden con un usuario de `db.json`. |
+- `POST /api/login`
 
-Ambos campos son obligatorios (`400`); las credenciales no válidas responden `401`. El inicio de sesión del prototipo utiliza las cuentas y contraseñas almacenadas en el JSON; no es una solución de autenticación de producción.
+Recibe `username` y `password`; valida contra la tabla `usuarios` y responde con los datos públicos del usuario en caso de éxito.
 
-## Respuestas de error
+## Notas y compatibilidad
 
-Las rutas responden con JSON y un campo `error` cuando ocurre un error de validación, el recurso no existe o falla una operación del servidor. Los errores inesperados se registran en el servidor y responden con estado `500`.
+- El frontend sigue consumiendo la misma API sin cambios funcionales.
+- `db.json` se conserva como respaldo del prototipo anterior y como fuente inicial para la migración.
+- La verificación de password se mantiene sin hashing por compatibilidad con el prototipo actual, como una limitación deliberada del demo.

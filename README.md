@@ -4,36 +4,36 @@ Proyecto académico para la materia de Desarrollo Rápido de Aplicaciones.
 
 ## Descripción
 
-Sistema web académico para administrar profesores y academias, consultar coincidencias entre materias y academias, y registrar evaluaciones docentes con calificaciones de 0 a 10.
+Sistema web académico para administrar profesores, academias, coincidencias entre materias y evaluaciones docentes con calificaciones de 0 a 10.
 
-## Funcionalidades actuales
+## Cambios de almacenamiento
 
-- Inicio de sesión de demostración.
-- Dashboard con estadísticas reales de profesores, academias, coincidencias y evaluaciones.
-- Gestión de profesores: crear, editar, consultar y eliminar.
-- Búsqueda de profesores, filtro por academia y ordenamiento.
-- Gestión de academias: crear, editar, consultar y eliminar.
-- Consulta de coincidencias entre las materias de cada profesor y su academia.
-- Evaluaciones docentes con calificaciones de 0 a 10 y comentarios opcionales.
-- Consulta del promedio de evaluación por profesor y listado general de evaluaciones.
-- Validaciones en el frontend y backend para los datos principales.
+Antes el prototipo usaba `backend/db.json` como almacenamiento activo. Ahora el sistema usa SQLite como almacenamiento principal.
+
+- `backend/db.json` sigue existiendo como respaldo, fuente de migración y datos iniciales.
+- El almacenamiento activo es `backend/niceproject.db`.
+- La base usa `better-sqlite3` con claves foráneas activadas.
+- La recreación del contenido de la base puede hacerse ejecutando `npm run migrate`.
 
 ## Tecnologías
 
-- HTML5.
-- JavaScript ES Modules.
-- W3CSS.
-- Node.js y Express.
-- CORS.
-- JSON como almacenamiento del prototipo (`backend/db.json`).
-- Git y GitHub para control de versiones.
+- HTML5
+- JavaScript ES Modules
+- W3CSS
+- Node.js y Express
+- CORS
+- SQLite con `better-sqlite3`
+- Git y GitHub
 
 ## Estructura del proyecto
 
 ```text
 niceproject/
 ├── backend/
+│   ├── database.js
 │   ├── db.json
+│   ├── migrate-json-to-sqlite.js
+│   ├── niceproject.db
 │   ├── package-lock.json
 │   ├── package.json
 │   ├── README.md
@@ -57,30 +57,44 @@ niceproject/
 
 ## Ejecución
 
-Se requiere Node.js y npm. Desde la raíz del proyecto, entra al backend, instala las dependencias e inicia el servidor:
+Se requiere Node.js y npm. Desde la carpeta `backend/` ejecuta:
 
 ```bash
 cd backend
 npm install
+npm run migrate
 npm start
 ```
 
-La API queda disponible en `http://localhost:3000`. Mantén el servidor activo y abre `frontend/` mediante Live Server desde Visual Studio Code.
+La API queda disponible en `http://localhost:3000` y el frontend debe seguir consumiendo la misma API sin cambios funcionales.
+
+## Base de datos SQLite
+
+La base `backend/niceproject.db` contiene estas tablas principales:
+
+- `usuarios`: credenciales del prototipo y datos básicos del usuario administrador.
+- `academias`: datos de cada academia y clave única.
+- `profesores`: información del personal académico y su relación con una academia.
+- `materias_profesor`: materias por profesor con nivel 0 a 10.
+- `materias_academia`: materias asignadas por academia.
+- `evaluaciones`: calificaciones y comentarios asociados a cada profesor.
+
+Se usan relaciones con `FOREIGN KEY` y restricciones para mantener integridad referencial.
 
 ## Credenciales de demostración
 
 - Usuario: `admin`
 - Contraseña: `admin123`
 
-Son credenciales únicamente para el prototipo académico. No deben utilizarse como mecanismo de autenticación para un sistema de producción.
+Estas credenciales se mantienen por compatibilidad con el prototipo. La migración no aplica hashing ni seguridad avanzada, ya que el objetivo del sistema es mantener el comportamiento actual del demo.
 
 ## Equipo
 
-- Saul Simon Gonzalez Santos — líder.
-- Alessandro Farid Vazquez Cortes.
-- Kevin Alejandro Blanco Mendoza.
-- Gerson David Dzuc Chable.
+- Saul Simon Gonzalez Santos
+- Alessandro Farid Vazquez Cortes
+- Kevin Alejandro Blanco Mendoza
+- Gerson David Dzuc Chable
 
 ## Estado
 
-Proyecto académico en desarrollo.
+Proyecto académico en desarrollo con almacenamiento SQLite activo.

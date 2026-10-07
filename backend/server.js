@@ -1,59 +1,112 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
-import { readFile, writeFile } from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DB_PATH = path.join(__dirname, 'db.json');
+import getDatabase from './database.js';
 
 const app = express();
 const PORT = 3000;
+const db = getDatabase();
 
 app.use(cors());
 app.use(express.json());
 
-// ---------- UTILIDADES ----------
-async function leerDB() {
-  const data = await readFile(DB_PATH, 'utf-8');
-  return JSON.parse(data);
+function sendError(res, status, message) {
+  return res.status(status).json({ error: message });
 }
 
-async function escribirDB(data) {
-  await writeFile(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
+function normalizeText(value) {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
-// ---------- VALIDACIONES ----------
-function validarProfesor(profesor, db, idActual = null) {
-  if (
-    !profesor.numeroEmpleado ||
-    !profesor.nombre ||
-    !profesor.apellido ||
-    !profesor.academiaId
-  ) {
+function normalizeAcademiaClave(value) {
+  return normalizeText(value).toUpperCase();
+}
+
+function getUltimoGrado(doctorado, maestria) {
+  if (doctorado && normalizeText(doctorado) !== '') {
+    return 'Doctorado';
+  }
+
+  if (maestria && normalizeText(maestria) !== '') {
+    return 'Maestría';
+  }
+
+  return 'Licenciatura';
+}
+
+function buildProfesorPayload(row) {
+  const materias = db
+    .prepare('SELECT nombre, nivel FROM materias_profesor WHERE profesorId = ? ORDER BY id')
+    .all(row.id);
+
+  return {
+    ...row,
+    perfilPRODEP: Boolean(row.perfilPRODEP),
+    materias,
+    ultimoGrado: getUltimoGrado(row.doctorado, row.maestria)
+  };
+}
+
+function buildAcademiaPayload(row) {
+  const integrantes = db
+    .prepare('SELECT id FROM profesores WHERE academiaId = ? ORDER BY id')
+    .pluck()
+    .all(row.clave);
+
+  const materiasAsignadas = db
+    .prepare('SELECT nombre FROM materias_academia WHERE academiaClave = ? ORDER BY id')
+    .pluck()
+    .all(row.clave);
+
+  return {
+    clave: row.clave,
+    nombre: row.nombre,
+    descripcion: row.descripcion || '',
+    integrantes,
+    materiasAsignadas
+  };
+}
+
+function normalizeProfesorInput(input = {}) {
+  return {
+    numeroEmpleado: normalizeText(input.numeroEmpleado).toUpperCase(),
+    nombre: normalizeText(input.nombre),
+    apellido: normalizeText(input.apellido),
+    especialidad: normalizeText(input.especialidad),
+    licenciatura: normalizeText(input.licenciatura),
+    maestria: normalizeText(input.maestria),
+    doctorado: normalizeText(input.doctorado),
+    sni: normalizeText(input.sni) || 'Ninguno',
+    perfilPRODEP: Boolean(input.perfilPRODEP),
+    academiaId: normalizeAcademiaClave(input.academiaId),
+    materias: Array.isArray(input.materias)
+      ? input.materias.map((materia) => ({
+          nombre: normalizeText(materia?.nombre),
+          nivel: Number(materia?.nivel)
+        }))
+      : []
+  };
+}
+
+function validarProfesor(profesor, idActual = null) {
+  if (!profesor.numeroEmpleado || !profesor.nombre || !profesor.apellido || !profesor.academiaId) {
     return 'Número de empleado, nombre, apellido y academia son obligatorios';
   }
 
-  const formatoEmpleado = /^EMP\d{3}$/;
-
-  if (!formatoEmpleado.test(profesor.numeroEmpleado)) {
+  if (!/^EMP\d{3}$/.test(profesor.numeroEmpleado)) {
     return 'El número de empleado debe tener el formato EMP seguido de 3 números, por ejemplo EMP001';
   }
 
-  const empleadoDuplicado = db.profesores.some(
-    p =>
-      p.numeroEmpleado === profesor.numeroEmpleado &&
-      p.id !== idActual
-  );
+  const empleadoDuplicado = db
+    .prepare('SELECT id FROM profesores WHERE numeroEmpleado = ? AND id != ?')
+    .get(profesor.numeroEmpleado, idActual ?? -1);
 
   if (empleadoDuplicado) {
     return 'Ya existe un profesor con ese número de empleado';
   }
 
-  const academiaExiste = db.academias.some(
-    a => a.clave === profesor.academiaId
-  );
+  const academiaExiste = db
+    .prepare('SELECT 1 FROM academias WHERE clave = ?')
+    .get(profesor.academiaId);
 
   if (!academiaExiste) {
     return 'La academia seleccionada no existe';
@@ -66,19 +119,19 @@ function validarProfesor(profesor, db, idActual = null) {
   const nombresMaterias = new Set();
 
   for (const materia of profesor.materias) {
-    if (!materia.nombre || materia.nombre.trim() === '') {
+    const nombre = normalizeText(materia?.nombre);
+
+    if (!nombre) {
       return 'Todas las materias deben tener nombre';
     }
 
-    if (
-      !Number.isInteger(materia.nivel) ||
-      materia.nivel < 0 ||
-      materia.nivel > 10
-    ) {
+    const nivel = Number(materia?.nivel);
+
+    if (!Number.isInteger(nivel) || nivel < 0 || nivel > 10) {
       return 'El nivel de dominio de cada materia debe ser un número entero entre 0 y 10';
     }
 
-    const nombreNormalizado = materia.nombre.trim().toLowerCase();
+    const nombreNormalizado = nombre.toLowerCase();
 
     if (nombresMaterias.has(nombreNormalizado)) {
       return 'No se puede repetir la misma materia para un profesor';
@@ -90,363 +143,374 @@ function validarProfesor(profesor, db, idActual = null) {
   return null;
 }
 
-function normalizarProfesor(profesor) {
-  return {
-    ...profesor,
-    numeroEmpleado: profesor.numeroEmpleado?.trim().toUpperCase(),
-    nombre: profesor.nombre?.trim(),
-    apellido: profesor.apellido?.trim(),
-    especialidad: profesor.especialidad?.trim() || '',
-    licenciatura: profesor.licenciatura?.trim() || '',
-    maestria: profesor.maestria?.trim() || '',
-    doctorado: profesor.doctorado?.trim() || '',
-    sni: profesor.sni || 'Ninguno',
-    perfilPRODEP: Boolean(profesor.perfilPRODEP),
-    academiaId: profesor.academiaId?.trim(),
-    materias: Array.isArray(profesor.materias)
-      ? profesor.materias.map(m => ({
-          nombre: m.nombre?.trim(),
-          nivel: Number(m.nivel)
-        }))
-      : []
-  };
+function validarAcademia(clave, nombre, materiasAsignadas) {
+  if (!clave || !nombre) {
+    return 'Clave y nombre son obligatorios';
+  }
+
+  if (clave.length > 10) {
+    return 'La clave debe tener máximo 10 caracteres';
+  }
+
+  if (!Array.isArray(materiasAsignadas)) {
+    return 'Las materias asignadas deben enviarse como una lista';
+  }
+
+  const materiasVistas = new Set();
+
+  for (const materia of materiasAsignadas) {
+    const texto = normalizeText(materia);
+
+    if (!texto) {
+      return 'Las materias asignadas no pueden estar vacías';
+    }
+
+    const claveNormalizada = texto.toLowerCase();
+
+    if (materiasVistas.has(claveNormalizada)) {
+      return 'No se pueden repetir materias asignadas en la misma academia';
+    }
+
+    materiasVistas.add(claveNormalizada);
+  }
+
+  return null;
 }
 
-// ---------- RAIZ ----------
 app.get('/', (req, res) => {
   res.send('API Profesores funcionando ✅');
 });
 
-// =========================================
-// PROFESORES
-// =========================================
-
-// GET - lista resumida
-app.get('/api/profesores', async (req, res) => {
+app.get('/api/profesores', (req, res) => {
   try {
-    const db = await leerDB();
+    const profesores = db
+      .prepare('SELECT * FROM profesores ORDER BY id')
+      .all();
 
-    const resumen = db.profesores.map(p => ({
-      id: p.id,
-      numeroEmpleado: p.numeroEmpleado,
-      nombre: p.nombre,
-      apellido: p.apellido,
-      especialidad: p.especialidad,
-      ultimoGrado: p.doctorado
-        ? 'Doctorado'
-        : p.maestria
-          ? 'Maestría'
-          : 'Licenciatura',
-      academiaId: p.academiaId,
-      materias: p.materias
-    }));
-
-    res.json(resumen);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al leer los datos' });
+    res.json(profesores.map((profesor) => buildProfesorPayload(profesor)));
+  } catch (error) {
+    console.error(error);
+    sendError(res, 500, 'Error al leer los datos');
   }
 });
 
-// GET - uno por id
-app.get('/api/profesores/:id', async (req, res) => {
+app.get('/api/profesores/:id', (req, res) => {
   try {
-    const db = await leerDB();
     const id = Number(req.params.id);
 
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({ error: 'ID inválido' });
+    if (!Number.isInteger(id) || id <= 0) {
+      return sendError(res, 400, 'ID inválido');
     }
 
-    const profe = db.profesores.find(p => p.id === id);
+    const profesor = db
+      .prepare('SELECT * FROM profesores WHERE id = ?')
+      .get(id);
 
-    if (!profe) {
-      return res.status(404).json({ error: 'Profesor no encontrado' });
+    if (!profesor) {
+      return sendError(res, 404, 'Profesor no encontrado');
     }
 
-    res.json(profe);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al leer los datos' });
+    return res.json(buildProfesorPayload(profesor));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al leer los datos');
   }
 });
 
-// POST - crear profesor
-app.post('/api/profesores', async (req, res) => {
+app.post('/api/profesores', (req, res) => {
   try {
-    const db = await leerDB();
-
-    const nuevo = normalizarProfesor(req.body);
-
-    const errorValidacion = validarProfesor(nuevo, db);
+    const nuevo = normalizeProfesorInput(req.body);
+    const errorValidacion = validarProfesor(nuevo);
 
     if (errorValidacion) {
-      return res.status(400).json({
-        error: errorValidacion
-      });
+      return sendError(res, 400, errorValidacion);
     }
 
-    const maxId = db.profesores.reduce(
-      (maximo, profesor) => Math.max(maximo, profesor.id || 0),
-      0
-    );
+    const tx = db.transaction(() => {
+      const insertProfesor = db.prepare(
+        `INSERT INTO profesores (
+          numeroEmpleado,
+          nombre,
+          apellido,
+          especialidad,
+          licenciatura,
+          maestria,
+          doctorado,
+          sni,
+          perfilPRODEP,
+          academiaId
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      );
 
-    nuevo.id = maxId + 1;
+      const result = insertProfesor.run(
+        nuevo.numeroEmpleado,
+        nuevo.nombre,
+        nuevo.apellido,
+        nuevo.especialidad,
+        nuevo.licenciatura,
+        nuevo.maestria,
+        nuevo.doctorado,
+        nuevo.sni,
+        nuevo.perfilPRODEP ? 1 : 0,
+        nuevo.academiaId
+      );
 
-    db.profesores.push(nuevo);
+      const profesorId = Number(result.lastInsertRowid);
 
-    // Agregar profesor a integrantes de su academia
-    const academia = db.academias.find(
-      a => a.clave === nuevo.academiaId
-    );
+      const insertMateria = db.prepare(
+        'INSERT INTO materias_profesor (profesorId, nombre, nivel) VALUES (?, ?, ?)'
+      );
 
-    if (academia && !academia.integrantes.includes(nuevo.id)) {
-      academia.integrantes.push(nuevo.id);
-    }
+      for (const materia of nuevo.materias) {
+        insertMateria.run(profesorId, materia.nombre, materia.nivel);
+      }
 
-    await escribirDB(db);
-
-    res.status(201).json(nuevo);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al crear el profesor'
+      return {
+        id: profesorId,
+        numeroEmpleado: nuevo.numeroEmpleado,
+        nombre: nuevo.nombre,
+        apellido: nuevo.apellido,
+        especialidad: nuevo.especialidad,
+        licenciatura: nuevo.licenciatura,
+        maestria: nuevo.maestria,
+        doctorado: nuevo.doctorado,
+        sni: nuevo.sni,
+        perfilPRODEP: nuevo.perfilPRODEP,
+        academiaId: nuevo.academiaId,
+        materias: nuevo.materias,
+        ultimoGrado: getUltimoGrado(nuevo.doctorado, nuevo.maestria)
+      };
     });
+
+    const profesorCreado = tx();
+    return res.status(201).json(profesorCreado);
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al crear el profesor');
   }
 });
 
-// PUT - actualizar profesor
-app.put('/api/profesores/:id', async (req, res) => {
+app.put('/api/profesores/:id', (req, res) => {
   try {
-    const db = await leerDB();
     const id = Number(req.params.id);
 
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({
-        error: 'ID inválido'
-      });
+    if (!Number.isInteger(id) || id <= 0) {
+      return sendError(res, 400, 'ID inválido');
     }
 
-    const idx = db.profesores.findIndex(
-      p => p.id === id
-    );
+    const existente = db
+      .prepare('SELECT * FROM profesores WHERE id = ?')
+      .get(id);
 
-    if (idx === -1) {
-      return res.status(404).json({
-        error: 'Profesor no encontrado'
-      });
+    if (!existente) {
+      return sendError(res, 404, 'Profesor no encontrado');
     }
 
-    const profesorAnterior = db.profesores[idx];
-
-    const actualizado = normalizarProfesor({
-      ...profesorAnterior,
+    const actualizado = normalizeProfesorInput({
+      ...existente,
       ...req.body,
       id
     });
 
-    actualizado.id = id;
+    actualizado.numeroEmpleado = normalizeText(req.body?.numeroEmpleado || existente.numeroEmpleado).toUpperCase();
+    actualizado.nombre = normalizeText(req.body?.nombre || existente.nombre);
+    actualizado.apellido = normalizeText(req.body?.apellido || existente.apellido);
+    actualizado.academiaId = normalizeAcademiaClave(req.body?.academiaId || existente.academiaId);
 
-    const errorValidacion = validarProfesor(
-      actualizado,
-      db,
-      id
-    );
+    const errorValidacion = validarProfesor(actualizado, id);
 
     if (errorValidacion) {
-      return res.status(400).json({
-        error: errorValidacion
-      });
+      return sendError(res, 400, errorValidacion);
     }
 
-    // Si cambió de academia, actualizar integrantes
-    if (profesorAnterior.academiaId !== actualizado.academiaId) {
-      const academiaAnterior = db.academias.find(
-        a => a.clave === profesorAnterior.academiaId
+    const tx = db.transaction(() => {
+      db.prepare(
+        `UPDATE profesores
+         SET numeroEmpleado = ?,
+             nombre = ?,
+             apellido = ?,
+             especialidad = ?,
+             licenciatura = ?,
+             maestria = ?,
+             doctorado = ?,
+             sni = ?,
+             perfilPRODEP = ?,
+             academiaId = ?
+         WHERE id = ?`
+      ).run(
+        actualizado.numeroEmpleado,
+        actualizado.nombre,
+        actualizado.apellido,
+        actualizado.especialidad,
+        actualizado.licenciatura,
+        actualizado.maestria,
+        actualizado.doctorado,
+        actualizado.sni,
+        actualizado.perfilPRODEP ? 1 : 0,
+        actualizado.academiaId,
+        id
       );
 
-      if (academiaAnterior) {
-        academiaAnterior.integrantes =
-          academiaAnterior.integrantes.filter(
-            integranteId => integranteId !== id
-          );
-      }
+      db.prepare('DELETE FROM materias_profesor WHERE profesorId = ?').run(id);
 
-      const nuevaAcademia = db.academias.find(
-        a => a.clave === actualizado.academiaId
+      const insertMateria = db.prepare(
+        'INSERT INTO materias_profesor (profesorId, nombre, nivel) VALUES (?, ?, ?)'
       );
 
-      if (
-        nuevaAcademia &&
-        !nuevaAcademia.integrantes.includes(id)
-      ) {
-        nuevaAcademia.integrantes.push(id);
+      for (const materia of actualizado.materias) {
+        insertMateria.run(id, materia.nombre, materia.nivel);
       }
-    }
-
-    db.profesores[idx] = actualizado;
-
-    await escribirDB(db);
-
-    res.json(actualizado);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al actualizar el profesor'
     });
+
+    tx();
+
+    return res.json({
+      ...actualizado,
+      id,
+      perfilPRODEP: actualizado.perfilPRODEP,
+      ultimoGrado: getUltimoGrado(actualizado.doctorado, actualizado.maestria)
+    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al actualizar el profesor');
   }
 });
 
-// DELETE - eliminar profesor
-app.delete('/api/profesores/:id', async (req, res) => {
+app.delete('/api/profesores/:id', (req, res) => {
   try {
-    const db = await leerDB();
     const id = Number(req.params.id);
 
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({
-        error: 'ID inválido'
-      });
+    if (!Number.isInteger(id) || id <= 0) {
+      return sendError(res, 400, 'ID inválido');
     }
 
-    const idx = db.profesores.findIndex(
-      p => p.id === id
-    );
+    const profesor = db
+      .prepare('SELECT * FROM profesores WHERE id = ?')
+      .get(id);
 
-    if (idx === -1) {
-      return res.status(404).json({
-        error: 'Profesor no encontrado'
-      });
+    if (!profesor) {
+      return sendError(res, 404, 'Profesor no encontrado');
     }
 
-    const eliminado = db.profesores.splice(idx, 1)[0];
+    const eliminado = buildProfesorPayload(profesor);
+    db.prepare('DELETE FROM profesores WHERE id = ?').run(id);
 
-    db.academias.forEach(a => {
-      a.integrantes = a.integrantes.filter(
-        integranteId => integranteId !== id
-      );
-    });
-
-    if (Array.isArray(db.evaluaciones)) {
-      db.evaluaciones = db.evaluaciones.filter(
-        evaluacion => evaluacion.profesorId !== id
-      );
-    }
-
-    await escribirDB(db);
-
-    res.json({
+    return res.json({
       mensaje: 'Profesor eliminado correctamente',
       profesor: eliminado
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al eliminar el profesor'
-    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al eliminar el profesor');
   }
 });
 
-// =========================================
-// EVALUACIONES
-// =========================================
-
-app.post('/api/evaluaciones', async (req, res) => {
+app.post('/api/evaluaciones', (req, res) => {
   try {
-    const db = await leerDB();
     const rawProfesorId = req.body?.profesorId;
     const profesorId = Number(rawProfesorId);
-    const idValido = (typeof rawProfesorId === 'number' && Number.isInteger(rawProfesorId)) ||
+    const idValido =
+      (typeof rawProfesorId === 'number' && Number.isInteger(rawProfesorId)) ||
       (typeof rawProfesorId === 'string' && /^\d+$/.test(rawProfesorId.trim()));
 
     if (!idValido || !Number.isInteger(profesorId) || profesorId <= 0) {
-      return res.status(400).json({ error: 'El ID del profesor no es válido' });
+      return sendError(res, 400, 'El ID del profesor no es válido');
     }
 
-    const profesor = db.profesores.find(p => p.id === profesorId);
+    const profesor = db
+      .prepare('SELECT 1 FROM profesores WHERE id = ?')
+      .get(profesorId);
+
     if (!profesor) {
-      return res.status(404).json({ error: 'El profesor no existe' });
+      return sendError(res, 404, 'El profesor no existe');
     }
 
-    const calificacion = req.body?.calificacion;
-    if (typeof calificacion !== 'number' || !Number.isFinite(calificacion)) {
-      return res.status(400).json({ error: 'La calificación debe ser numérica' });
+    const calificacionRaw = req.body?.calificacion;
+    const calificacion = Number(calificacionRaw);
+
+    if (!Number.isFinite(calificacion) || calificacion < 0 || calificacion > 10) {
+      return sendError(res, 400, 'La calificación debe estar entre 0 y 10');
     }
 
-    if (calificacion < 0 || calificacion > 10) {
-      return res.status(400).json({ error: 'La calificación debe estar entre 0 y 10' });
+    const comentarioRaw = req.body?.comentario ?? '';
+
+    if (typeof comentarioRaw !== 'string') {
+      return sendError(res, 400, 'El comentario debe ser texto');
     }
 
-    const comentarioRecibido = req.body?.comentario ?? '';
-    if (typeof comentarioRecibido !== 'string') {
-      return res.status(400).json({ error: 'El comentario debe ser texto' });
-    }
+    const comentario = comentarioRaw.trim();
 
-    const comentario = comentarioRecibido.trim();
     if (comentario.length > 500) {
-      return res.status(400).json({ error: 'El comentario no puede superar 500 caracteres' });
+      return sendError(res, 400, 'El comentario no puede superar 500 caracteres');
     }
-
-    if (!Array.isArray(db.evaluaciones)) {
-      db.evaluaciones = [];
-    }
-
-    const id = db.evaluaciones.reduce(
-      (mayor, evaluacion) => Number.isInteger(evaluacion.id) && evaluacion.id > mayor
-        ? evaluacion.id
-        : mayor,
-      0
-    ) + 1;
 
     const evaluacion = {
-      id,
+      id: 0,
       profesorId,
       calificacion,
       comentario,
       fecha: new Date().toISOString()
     };
 
-    db.evaluaciones.push(evaluacion);
-    await escribirDB(db);
-    res.status(201).json(evaluacion);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al registrar la evaluación' });
+    const result = db.prepare(
+      'INSERT INTO evaluaciones (profesorId, calificacion, comentario, fecha) VALUES (?, ?, ?, ?)'
+    ).run(profesorId, calificacion, comentario, evaluacion.fecha);
+
+    evaluacion.id = Number(result.lastInsertRowid);
+    return res.status(201).json(evaluacion);
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al registrar la evaluación');
   }
 });
 
-app.get('/api/evaluaciones', async (req, res) => {
+app.get('/api/evaluaciones', (req, res) => {
   try {
-    const db = await leerDB();
-    res.json(Array.isArray(db.evaluaciones) ? db.evaluaciones : []);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al obtener las evaluaciones' });
+    const evaluaciones = db
+      .prepare('SELECT * FROM evaluaciones ORDER BY id')
+      .all();
+
+    return res.json(evaluaciones);
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al obtener las evaluaciones');
   }
 });
 
-app.get('/api/profesores/:id/evaluaciones', async (req, res) => {
+app.get('/api/profesores/:id/evaluaciones', (req, res) => {
   try {
-    const db = await leerDB();
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ error: 'ID de profesor inválido' });
+      return sendError(res, 400, 'ID de profesor inválido');
     }
 
-    const profesor = db.profesores.find(p => p.id === id);
+    const profesor = db
+      .prepare('SELECT id, numeroEmpleado, nombre, apellido FROM profesores WHERE id = ?')
+      .get(id);
+
     if (!profesor) {
-      return res.status(404).json({ error: 'Profesor no encontrado' });
+      return sendError(res, 404, 'Profesor no encontrado');
     }
 
-    const evaluaciones = (Array.isArray(db.evaluaciones) ? db.evaluaciones : [])
-      .filter(evaluacion => evaluacion.profesorId === id);
-    const promedio = evaluaciones.length === 0
-      ? null
-      : Math.round((evaluaciones.reduce((suma, evaluacion) => suma + evaluacion.calificacion, 0) /
-        evaluaciones.length + Number.EPSILON) * 100) / 100;
+    const evaluaciones = db
+      .prepare('SELECT * FROM evaluaciones WHERE profesorId = ? ORDER BY id')
+      .all(id);
 
-    res.json({
+    const totalEvaluaciones = evaluaciones.length;
+    const promedio =
+      totalEvaluaciones === 0
+        ? null
+        : Number(
+            (
+              evaluaciones.reduce(
+                (suma, evaluacion) => suma + Number(evaluacion.calificacion),
+                0
+              ) / totalEvaluaciones
+            ).toFixed(2)
+          );
+
+    return res.json({
       profesor: {
         id: profesor.id,
         numeroEmpleado: profesor.numeroEmpleado,
@@ -454,351 +518,324 @@ app.get('/api/profesores/:id/evaluaciones', async (req, res) => {
         apellido: profesor.apellido
       },
       evaluaciones,
-      totalEvaluaciones: evaluaciones.length,
+      totalEvaluaciones,
       promedio
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al obtener las evaluaciones del profesor' });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al obtener las evaluaciones del profesor');
   }
 });
 
-app.delete('/api/evaluaciones/:id', async (req, res) => {
+app.delete('/api/evaluaciones/:id', (req, res) => {
   try {
-    const db = await leerDB();
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ error: 'ID de evaluación inválido' });
+      return sendError(res, 400, 'ID de evaluación inválido');
     }
 
-    const evaluaciones = Array.isArray(db.evaluaciones) ? db.evaluaciones : [];
-    const indice = evaluaciones.findIndex(evaluacion => evaluacion.id === id);
-    if (indice === -1) {
-      return res.status(404).json({ error: 'Evaluación no encontrada' });
+    const evaluacion = db
+      .prepare('SELECT * FROM evaluaciones WHERE id = ?')
+      .get(id);
+
+    if (!evaluacion) {
+      return sendError(res, 404, 'Evaluación no encontrada');
     }
 
-    const [eliminada] = evaluaciones.splice(indice, 1);
-    db.evaluaciones = evaluaciones;
-    await escribirDB(db);
-    res.json({ mensaje: 'Evaluación eliminada correctamente', evaluacion: eliminada });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al eliminar la evaluación' });
+    db.prepare('DELETE FROM evaluaciones WHERE id = ?').run(id);
+
+    return res.json({
+      mensaje: 'Evaluación eliminada correctamente',
+      evaluacion
+    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al eliminar la evaluación');
   }
 });
 
-// =========================================
-// ACADEMIAS
-// =========================================
-
-app.get('/api/academias', async (req, res) => {
+app.get('/api/academias', (req, res) => {
   try {
-    const db = await leerDB();
-    res.json(db.academias);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al leer los datos'
-    });
+    const academias = db
+      .prepare('SELECT * FROM academias ORDER BY clave')
+      .all();
+
+    return res.json(academias.map((academia) => buildAcademiaPayload(academia)));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al leer los datos');
   }
 });
 
-app.get('/api/academias/:clave', async (req, res) => {
+app.get('/api/academias/:clave', (req, res) => {
   try {
-    const db = await leerDB();
+    const clave = normalizeAcademiaClave(req.params.clave);
 
-    const clave = req.params.clave.trim().toUpperCase();
-
-    const acad = db.academias.find(
-      a => a.clave === clave
-    );
-
-    if (!acad) {
-      return res.status(404).json({
-        error: 'Academia no encontrada'
-      });
-    }
-
-    const integrantes = db.profesores.filter(
-      p => acad.integrantes.includes(p.id)
-    );
-
-    res.json({
-      ...acad,
-      integrantesData: integrantes
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al leer los datos'
-    });
-  }
-});
-
-// POST - crear academia
-app.post('/api/academias', async (req, res) => {
-  try {
-    const db = await leerDB();
-
-    const nueva = {
-      ...req.body,
-      clave: req.body.clave?.trim().toUpperCase(),
-      nombre: req.body.nombre?.trim()
-    };
-
-    if (!nueva.clave || !nueva.nombre) {
-      return res.status(400).json({
-        error: 'Clave y nombre son obligatorios'
-      });
-    }
-
-    if (nueva.clave.length > 10) {
-      return res.status(400).json({
-        error: 'La clave debe tener máximo 10 caracteres'
-      });
-    }
-
-    if (
-      db.academias.some(
-        a => a.clave === nueva.clave
-      )
-    ) {
-      return res.status(400).json({
-        error: 'Ya existe una academia con esa clave'
-      });
-    }
-
-    if (!Array.isArray(nueva.integrantes)) {
-      nueva.integrantes = [];
-    }
-
-    if (!Array.isArray(nueva.materiasAsignadas)) {
-      nueva.materiasAsignadas = [];
-    }
-
-    db.academias.push(nueva);
-
-    await escribirDB(db);
-
-    res.status(201).json(nueva);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al crear la academia'
-    });
-  }
-});
-
-// PUT - actualizar academia
-app.put('/api/academias/:clave', async (req, res) => {
-  try {
-    const db = await leerDB();
-
-    const clave = req.params.clave
-      .trim()
-      .toUpperCase();
-
-    const idx = db.academias.findIndex(
-      a => a.clave === clave
-    );
-
-    if (idx === -1) {
-      return res.status(404).json({
-        error: 'Academia no encontrada'
-      });
-    }
-
-    const actualizada = {
-      ...db.academias[idx],
-      ...req.body,
-      clave
-    };
-
-    if (
-      !actualizada.nombre ||
-      actualizada.nombre.trim() === ''
-    ) {
-      return res.status(400).json({
-        error: 'El nombre de la academia es obligatorio'
-      });
-    }
-
-    if (actualizada.clave.length > 10) {
-      return res.status(400).json({
-        error: 'La clave debe tener máximo 10 caracteres'
-      });
-    }
-
-    if (!Array.isArray(actualizada.integrantes)) {
-      actualizada.integrantes = [];
-    }
-
-    if (!Array.isArray(actualizada.materiasAsignadas)) {
-      actualizada.materiasAsignadas = [];
-    }
-
-    db.academias[idx] = actualizada;
-
-    await escribirDB(db);
-
-    res.json(actualizada);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al actualizar la academia'
-    });
-  }
-});
-
-// DELETE - eliminar academia
-app.delete('/api/academias/:clave', async (req, res) => {
-  try {
-    const db = await leerDB();
-
-    const clave = req.params.clave
-      .trim()
-      .toUpperCase();
-
-    const idx = db.academias.findIndex(
-      a => a.clave === clave
-    );
-
-    if (idx === -1) {
-      return res.status(404).json({
-        error: 'Academia no encontrada'
-      });
-    }
-
-    const tieneProfesores = db.profesores.some(
-      p => p.academiaId === clave
-    );
-
-    if (tieneProfesores) {
-      return res.status(400).json({
-        error: 'No se puede eliminar una academia que tiene profesores asignados'
-      });
-    }
-
-    const eliminada = db.academias.splice(idx, 1)[0];
-
-    await escribirDB(db);
-
-    res.json({
-      mensaje: 'Academia eliminada correctamente',
-      academia: eliminada
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al eliminar la academia'
-    });
-  }
-});
-
-// =========================================
-// REGLA DE NEGOCIO: coincidencia de materias
-// =========================================
-
-app.get('/api/profesores/:id/coincidencias', async (req, res) => {
-  try {
-    const db = await leerDB();
-    const id = Number(req.params.id);
-
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({
-        error: 'ID inválido'
-      });
-    }
-
-    const profe = db.profesores.find(
-      p => p.id === id
-    );
-
-    if (!profe) {
-      return res.status(404).json({
-        error: 'Profesor no encontrado'
-      });
-    }
-
-    const academia = db.academias.find(
-      a => a.clave === profe.academiaId
-    );
+    const academia = db
+      .prepare('SELECT * FROM academias WHERE clave = ?')
+      .get(clave);
 
     if (!academia) {
-      return res.status(404).json({
-        error: 'El profesor no tiene una academia válida'
-      });
+      return sendError(res, 404, 'Academia no encontrada');
     }
 
-    const materiasProfe = profe.materias.map(
-      m => m.nombre.toLowerCase()
-    );
+    const integrantes = db
+      .prepare('SELECT * FROM profesores WHERE academiaId = ? ORDER BY id')
+      .all(clave);
 
-    const coincidencias =
-      academia.materiasAsignadas.filter(
-        materia =>
-          materiasProfe.includes(
-            materia.toLowerCase()
-          )
+    const payload = {
+      ...academia,
+      descripcion: academia.descripcion || '',
+      integrantes: integrantes.map((profesor) => profesor.id),
+      integrantesData: integrantes,
+      materiasAsignadas: db
+        .prepare('SELECT nombre FROM materias_academia WHERE academiaClave = ? ORDER BY id')
+        .pluck()
+        .all(clave)
+    };
+
+    return res.json(payload);
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al leer los datos');
+  }
+});
+
+app.post('/api/academias', (req, res) => {
+  try {
+    const clave = normalizeAcademiaClave(req.body?.clave);
+    const nombre = normalizeText(req.body?.nombre);
+    const descripcion = normalizeText(req.body?.descripcion);
+    const materiasAsignadas = Array.isArray(req.body?.materiasAsignadas)
+      ? req.body.materiasAsignadas.map((materia) => normalizeText(materia))
+      : [];
+
+    const errorValidacion = validarAcademia(clave, nombre, materiasAsignadas);
+
+    if (errorValidacion) {
+      return sendError(res, 400, errorValidacion);
+    }
+
+    const academiaDuplicada = db
+      .prepare('SELECT 1 FROM academias WHERE clave = ?')
+      .get(clave);
+
+    if (academiaDuplicada) {
+      return sendError(res, 400, 'Ya existe una academia con esa clave');
+    }
+
+    const tx = db.transaction(() => {
+      db.prepare('INSERT INTO academias (clave, nombre, descripcion) VALUES (?, ?, ?)').run(
+        clave,
+        nombre,
+        descripcion
       );
 
-    res.json({
-      profesor: `${profe.nombre} ${profe.apellido}`,
+      const insertMateria = db.prepare(
+        'INSERT INTO materias_academia (academiaClave, nombre) VALUES (?, ?)'
+      );
+
+      for (const materia of materiasAsignadas) {
+        insertMateria.run(clave, materia);
+      }
+    });
+
+    tx();
+
+    return res.status(201).json({
+      clave,
+      nombre,
+      descripcion,
+      integrantes: [],
+      materiasAsignadas
+    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al crear la academia');
+  }
+});
+
+app.put('/api/academias/:clave', (req, res) => {
+  try {
+    const claveActual = normalizeAcademiaClave(req.params.clave);
+    const academiaExistente = db
+      .prepare('SELECT * FROM academias WHERE clave = ?')
+      .get(claveActual);
+
+    if (!academiaExistente) {
+      return sendError(res, 404, 'Academia no encontrada');
+    }
+
+    const clave = normalizeAcademiaClave(req.body?.clave || claveActual);
+    const nombre = normalizeText(req.body?.nombre || academiaExistente.nombre);
+    const descripcion = normalizeText(req.body?.descripcion ?? academiaExistente.descripcion ?? '');
+    const materiasAsignadas = Array.isArray(req.body?.materiasAsignadas)
+      ? req.body.materiasAsignadas.map((materia) => normalizeText(materia))
+      : [];
+
+    const errorValidacion = validarAcademia(clave, nombre, materiasAsignadas);
+
+    if (errorValidacion) {
+      return sendError(res, 400, errorValidacion);
+    }
+
+    const otraAcademia = db
+      .prepare('SELECT 1 FROM academias WHERE clave = ? AND clave != ?')
+      .get(clave, claveActual);
+
+    if (otraAcademia) {
+      return sendError(res, 400, 'Ya existe una academia con esa clave');
+    }
+
+    const tx = db.transaction(() => {
+      if (clave !== claveActual) {
+        db.prepare('UPDATE academias SET clave = ? WHERE clave = ?').run(clave, claveActual);
+      }
+
+      db.prepare('UPDATE academias SET nombre = ?, descripcion = ? WHERE clave = ?').run(
+        nombre,
+        descripcion,
+        clave
+      );
+
+      db.prepare('DELETE FROM materias_academia WHERE academiaClave = ?').run(clave);
+
+      const insertMateria = db.prepare(
+        'INSERT INTO materias_academia (academiaClave, nombre) VALUES (?, ?)'
+      );
+
+      for (const materia of materiasAsignadas) {
+        insertMateria.run(clave, materia);
+      }
+    });
+
+    tx();
+
+    return res.json({
+      clave,
+      nombre,
+      descripcion,
+      integrantes: db
+        .prepare('SELECT id FROM profesores WHERE academiaId = ? ORDER BY id')
+        .pluck()
+        .all(clave),
+      materiasAsignadas
+    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al actualizar la academia');
+  }
+});
+
+app.delete('/api/academias/:clave', (req, res) => {
+  try {
+    const clave = normalizeAcademiaClave(req.params.clave);
+
+    const academia = db
+      .prepare('SELECT * FROM academias WHERE clave = ?')
+      .get(clave);
+
+    if (!academia) {
+      return sendError(res, 404, 'Academia no encontrada');
+    }
+
+    const tieneProfesores = db
+      .prepare('SELECT COUNT(*) as total FROM profesores WHERE academiaId = ?')
+      .get(clave).total > 0;
+
+    if (tieneProfesores) {
+      return sendError(res, 400, 'No se puede eliminar una academia que tiene profesores asignados');
+    }
+
+    db.prepare('DELETE FROM academias WHERE clave = ?').run(clave);
+
+    return res.json({
+      mensaje: 'Academia eliminada correctamente',
+      academia
+    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al eliminar la academia');
+  }
+});
+
+app.get('/api/profesores/:id/coincidencias', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return sendError(res, 400, 'ID inválido');
+    }
+
+    const profesor = db
+      .prepare('SELECT * FROM profesores WHERE id = ?')
+      .get(id);
+
+    if (!profesor) {
+      return sendError(res, 404, 'Profesor no encontrado');
+    }
+
+    const academia = db
+      .prepare('SELECT * FROM academias WHERE clave = ?')
+      .get(profesor.academiaId);
+
+    if (!academia) {
+      return sendError(res, 404, 'El profesor no tiene una academia válida');
+    }
+
+    const materiasProfesor = db
+      .prepare('SELECT LOWER(nombre) as nombre FROM materias_profesor WHERE profesorId = ?')
+      .pluck()
+      .all(id);
+
+    const materiasAcademia = db
+      .prepare('SELECT LOWER(nombre) as nombre FROM materias_academia WHERE academiaClave = ?')
+      .pluck()
+      .all(profesor.academiaId);
+
+    const coincidencias = materiasAcademia.filter((materia) => materiasProfesor.includes(materia));
+
+    return res.json({
+      profesor: `${profesor.nombre} ${profesor.apellido}`,
       academia: academia.nombre,
       coincidencias,
       total: coincidencias.length
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al calcular coincidencias'
-    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al calcular coincidencias');
   }
 });
 
-// =========================================
-// LOGIN
-// =========================================
-
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', (req, res) => {
   try {
-    const { username, password } = req.body;
+    const username = normalizeText(req.body?.username);
+    const password = normalizeText(req.body?.password);
 
     if (!username || !password) {
-      return res.status(400).json({
-        error: 'Usuario y contraseña son obligatorios'
-      });
+      return sendError(res, 400, 'Usuario y contraseña son obligatorios');
     }
 
-    const db = await leerDB();
+    const usuario = db
+      .prepare('SELECT id, username, nombre FROM usuarios WHERE username = ? AND password = ?')
+      .get(username, password);
 
-    const user = db.usuarios.find(
-      u =>
-        u.username === username &&
-        u.password === password
-    );
-
-    if (!user) {
-      return res.status(401).json({
-        error: 'Credenciales inválidas'
-      });
+    if (!usuario) {
+      return sendError(res, 401, 'Credenciales inválidas');
     }
 
-    res.json({
-      id: user.id,
-      username: user.username,
-      nombre: user.nombre
+    return res.json({
+      id: usuario.id,
+      username: usuario.username,
+      nombre: usuario.nombre
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      error: 'Error al iniciar sesión'
-    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al iniciar sesión');
   }
 });
 
-// ---------- ARRANCAR ----------
 app.listen(PORT, () => {
   console.log(`✅ Servidor en http://localhost:${PORT}`);
 });
