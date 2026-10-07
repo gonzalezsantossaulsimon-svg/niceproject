@@ -106,6 +106,56 @@ export async function login(username, password) {
   return r.json();
 }
 
+// -------- HORARIOS --------
+function crearQueryString(filtros = {}) {
+  const params = new URLSearchParams();
+
+  Object.entries(filtros).forEach(([clave, valor]) => {
+    if (valor === undefined || valor === null || valor === '') {
+      return;
+    }
+    params.append(clave, String(valor));
+  });
+
+  const cadena = params.toString();
+  return cadena ? `?${cadena}` : '';
+}
+
+export async function getHorarios(filtros = {}) {
+  const response = await fetch(`${API_URL}/horarios${crearQueryString(filtros)}`);
+  return procesarRespuestaEvaluacion(response, 'Error al obtener los horarios');
+}
+
+export async function getHorario(id) {
+  const response = await fetch(`${API_URL}/horarios/${encodeURIComponent(id)}`);
+  return procesarRespuestaEvaluacion(response, 'Error al obtener el horario');
+}
+
+export async function crearHorario(data) {
+  const response = await fetch(`${API_URL}/horarios`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return procesarRespuestaEvaluacion(response, 'Error al crear el horario');
+}
+
+export async function actualizarHorario(id, data) {
+  const response = await fetch(`${API_URL}/horarios/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return procesarRespuestaEvaluacion(response, 'Error al actualizar el horario');
+}
+
+export async function eliminarHorario(id) {
+  const response = await fetch(`${API_URL}/horarios/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+  return procesarRespuestaEvaluacion(response, 'Error al eliminar el horario');
+}
+
 // -------- COINCIDENCIAS --------
 export async function getCoincidencias(id) {
   const r = await fetch(`${API_URL}/profesores/${id}/coincidencias`);

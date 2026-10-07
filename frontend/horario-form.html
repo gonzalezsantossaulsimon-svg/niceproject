@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horario</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="horarios.html" class="w3-bar-item w3-button w3-right">Volver</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo" id="titulo">Nuevo horario</h1>
+
+    <div class="w3-card-4 w3-white w3-padding-16 w3-margin-top" style="max-width: 800px;">
+      <form id="form" novalidate>
+        <div class="w3-row-padding">
+          <div class="w3-half">
+            <label class="w3-text-indigo"><b>Profesor *</b></label>
+            <select class="w3-select w3-border" id="profesorId" required>
+              <option value="">-- Selecciona --</option>
+            </select>
+          </div>
+          <div class="w3-half">
+            <label class="w3-text-indigo"><b>Materia *</b></label>
+            <select class="w3-select w3-border" id="materia" required>
+              <option value="">-- Selecciona --</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="w3-row-padding w3-margin-top">
+          <div class="w3-half">
+            <label class="w3-text-indigo"><b>Día *</b></label>
+            <select class="w3-select w3-border" id="dia" required>
+              <option value="">-- Selecciona --</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+            </select>
+          </div>
+          <div class="w3-half">
+            <label class="w3-text-indigo"><b>Grupo</b></label>
+            <input class="w3-input w3-border" id="grupo" type="text" maxlength="50" placeholder="Ejemplo: 4A">
+          </div>
+        </div>
+
+        <div class="w3-row-padding w3-margin-top">
+          <div class="w3-half">
+            <label class="w3-text-indigo"><b>Hora inicio *</b></label>
+            <input class="w3-input w3-border" id="horaInicio" type="time" required>
+          </div>
+          <div class="w3-half">
+            <label class="w3-text-indigo"><b>Hora fin *</b></label>
+            <input class="w3-input w3-border" id="horaFin" type="time" required>
+          </div>
+        </div>
+
+        <div class="w3-margin-top">
+          <label class="w3-text-indigo"><b>Aula *</b></label>
+          <input class="w3-input w3-border" id="aula" type="text" maxlength="50" placeholder="Ejemplo: Aula 1 o Lab Redes" required>
+        </div>
+
+        <div class="w3-margin-top">
+          <button type="submit" class="w3-btn w3-green w3-round">
+            <i class="fa fa-save"></i> Guardar
+          </button>
+          <a href="horarios.html" class="w3-btn w3-grey w3-round">Cancelar</a>
+        </div>
+
+        <div id="msg" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top" style="display:none;" role="alert"></div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { crearHorario, actualizarHorario, getHorario, getProfesores } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+
+    requiereSesion();
+
+    const form = document.getElementById('form');
+    const profesorSelect = document.getElementById('profesorId');
+    const materiaSelect = document.getElementById('materia');
+    const diaSelect = document.getElementById('dia');
+    const horarioInicioInput = document.getElementById('horaInicio');
+    const horarioFinInput = document.getElementById('horaFin');
+    const aulaInput = document.getElementById('aula');
+    const grupoInput = document.getElementById('grupo');
+    const msg = document.getElementById('msg');
+    const titulo = document.getElementById('titulo');
+    const params = new URLSearchParams(window.location.search);
+    const horarioId = params.get('id');
+
+    let profesores = [];
+
+    function mostrarError(mensaje) {
+      msg.textContent = mensaje;
+      msg.style.display = 'block';
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function limpiarError() {
+      msg.textContent = '';
+      msg.style.display = 'none';
+    }
+
+    function llenarProfesores() {
+      profesorSelect.replaceChildren();
+
+      const opcion = document.createElement('option');
+      opcion.value = '';
+      opcion.textContent = '-- Selecciona --';
+      profesorSelect.appendChild(opcion);
+
+      profesores.forEach((profesor) => {
+        const option = document.createElement('option');
+        option.value = String(profesor.id);
+        option.textContent = `${profesor.numeroEmpleado} - ${profesor.nombre} ${profesor.apellido}`;
+        profesorSelect.appendChild(option);
+      });
+    }
+
+    function llenarMaterias(profesorId) {
+      const profesor = profesores.find((item) => String(item.id) === String(profesorId));
+      const materias = profesor?.materias || [];
+      materiaSelect.replaceChildren();
+
+      const opcion = document.createElement('option');
+      opcion.value = '';
+      opcion.textContent = '-- Selecciona --';
+      materiaSelect.appendChild(opcion);
+
+      materias.forEach((materia) => {
+        const option = document.createElement('option');
+        option.value = materia.nombre;
+        option.textContent = materia.nombre;
+        materiaSelect.appendChild(option);
+      });
+    }
+
+    async function cargarProfesores() {
+      profesores = await getProfesores();
+      llenarProfesores();
+
+      if (horarioId) {
+        await cargarHorario();
+      }
+    }
+
+    async function cargarHorario() {
+      try {
+        const horario = await getHorario(horarioId);
+        titulo.textContent = 'Editar horario';
+        profesorSelect.value = String(horario.profesorId);
+        llenarMaterias(horario.profesorId);
+        materiaSelect.value = horario.materia;
+        diaSelect.value = horario.dia;
+        horarioInicioInput.value = horario.horaInicio;
+        horarioFinInput.value = horario.horaFin;
+        aulaInput.value = horario.aula || '';
+        grupoInput.value = horario.grupo || '';
+      } catch (error) {
+        mostrarError(error.message || 'No se pudo cargar el horario');
+      }
+    }
+
+    profesorSelect.addEventListener('change', () => {
+      llenarMaterias(profesorSelect.value);
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      limpiarError();
+
+      const payload = {
+        profesorId: Number(profesorSelect.value),
+        materia: materiaSelect.value.trim(),
+        dia: diaSelect.value,
+        horaInicio: horarioInicioInput.value,
+        horaFin: horarioFinInput.value,
+        aula: aulaInput.value.trim(),
+        grupo: grupoInput.value.trim()
+      };
+
+      try {
+        if (horarioId) {
+          await actualizarHorario(horarioId, payload);
+        } else {
+          await crearHorario(payload);
+        }
+
+        window.location.href = 'horarios.html';
+      } catch (error) {
+        mostrarError(error.message || 'No se pudo guardar el horario');
+      }
+    });
+
+    await cargarProfesores();
+  </script>
+</body>
+</html>

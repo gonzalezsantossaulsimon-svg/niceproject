@@ -77,6 +77,20 @@ function initializeDatabase() {
       CHECK (calificacion >= 0 AND calificacion <= 10)
     );
 
+    CREATE TABLE IF NOT EXISTS horarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      profesorId INTEGER NOT NULL,
+      materia TEXT NOT NULL,
+      dia TEXT NOT NULL,
+      horaInicio TEXT NOT NULL,
+      horaFin TEXT NOT NULL,
+      aula TEXT NOT NULL,
+      grupo TEXT NOT NULL DEFAULT '',
+      FOREIGN KEY (profesorId) REFERENCES profesores(id)
+        ON DELETE CASCADE,
+      CHECK (dia IN ('Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'))
+    );
+
     CREATE TABLE IF NOT EXISTS migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nombre TEXT NOT NULL UNIQUE,

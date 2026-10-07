@@ -5,6 +5,8 @@ import getDatabase from './database.js';
 const app = express();
 const PORT = 3000;
 const db = getDatabase();
+const DIAS_PERMITIDOS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const ORDEN_DIAS = Object.fromEntries(DIAS_PERMITIDOS.map((dia, index) => [dia, index + 1]));
 
 app.use(cors());
 app.use(express.json());
@@ -19,6 +21,42 @@ function normalizeText(value) {
 
 function normalizeAcademiaClave(value) {
   return normalizeText(value).toUpperCase();
+}
+
+function normalizeDia(value) {
+  const texto = normalizeText(value);
+  const diaNormalizado = DIAS_PERMITIDOS.find((dia) => dia.toLowerCase() === texto.toLowerCase());
+  return diaNormalizado || '';
+}
+
+function normalizeHora(value) {
+  const texto = normalizeText(value);
+
+  if (!/^\d{2}:\d{2}$/.test(texto)) {
+    return '';
+  }
+
+  const [horas, minutos] = texto.split(':').map(Number);
+
+  if (!Number.isInteger(horas) || !Number.isInteger(minutos)) {
+    return '';
+  }
+
+  if (horas < 0 || horas > 23 || minutos < 0 || minutos > 59) {
+    return '';
+  }
+
+  return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`;
+}
+
+function horaEnMinutos(hora) {
+  const [horas, minutos] = normalizeHora(hora).split(':').map(Number);
+  return horas * 60 + minutos;
+}
+
+function horariosSeSolapan(inicioNuevo, finNuevo, inicioExistente, finExistente) {
+  return horaEnMinutos(inicioNuevo) < horaEnMinutos(finExistente)
+    && horaEnMinutos(finNuevo) > horaEnMinutos(inicioExistente);
 }
 
 function getUltimoGrado(doctorado, maestria) {
@@ -63,6 +101,25 @@ function buildAcademiaPayload(row) {
     descripcion: row.descripcion || '',
     integrantes,
     materiasAsignadas
+  };
+}
+
+function buildHorarioPayload(row) {
+  const profesor = db
+    .prepare('SELECT nombre, apellido, numeroEmpleado FROM profesores WHERE id = ?')
+    .get(row.profesorId);
+
+  return {
+    id: Number(row.id),
+    profesorId: Number(row.profesorId),
+    profesorNombre: profesor ? `${profesor.nombre} ${profesor.apellido}`.trim() : '',
+    numeroEmpleado: profesor ? profesor.numeroEmpleado : '',
+    materia: row.materia,
+    dia: row.dia,
+    horaInicio: row.horaInicio,
+    horaFin: row.horaFin,
+    aula: row.aula,
+    grupo: row.grupo || ''
   };
 }
 
@@ -172,6 +229,85 @@ function validarAcademia(clave, nombre, materiasAsignadas) {
     }
 
     materiasVistas.add(claveNormalizada);
+  }
+
+  return null;
+}
+
+function normalizarHorarioInput(input = {}) {
+  return {
+    profesorId: Number(input.profesorId),
+    materia: normalizeText(input.materia),
+    dia: normalizeDia(input.dia),
+    horaInicio: normalizeHora(input.horaInicio),
+    horaFin: normalizeHora(input.horaFin),
+    aula: normalizeText(input.aula),
+    grupo: normalizeText(input.grupo)
+  };
+}
+
+function validarHorario(horario, idActual = null) {
+  if (!Number.isInteger(horario.profesorId) || horario.profesorId <= 0) {
+    return 'El profesor es obligatorio';
+  }
+
+  if (!horario.materia) {
+    return 'La materia es obligatoria';
+  }
+
+  const materiasProfesor = db
+    .prepare('SELECT LOWER(nombre) AS nombre FROM materias_profesor WHERE profesorId = ?')
+    .pluck()
+    .all(horario.profesorId);
+
+  if (!materiasProfesor.includes(horario.materia.toLowerCase())) {
+    return 'La materia no pertenece al profesor';
+  }
+
+  if (!horario.dia) {
+    return 'El día es obligatorio';
+  }
+
+  if (!horario.horaInicio || !horario.horaFin) {
+    return 'Las horas deben tener el formato HH:MM';
+  }
+
+  if (horaEnMinutos(horario.horaInicio) >= horaEnMinutos(horario.horaFin)) {
+    return 'La hora de inicio debe ser menor que la de fin';
+  }
+
+  if (!horario.aula) {
+    return 'El aula es obligatoria';
+  }
+
+  const choqueProfesor = db
+    .prepare(
+      `SELECT id FROM horarios
+       WHERE profesorId = ?
+         AND dia = ?
+         AND id != ?
+         AND horaInicio < ?
+         AND horaFin > ?`
+    )
+    .get(horario.profesorId, horario.dia, idActual ?? -1, horario.horaFin, horario.horaInicio);
+
+  if (choqueProfesor) {
+    return 'El profesor ya tiene una clase en ese horario';
+  }
+
+  const choqueAula = db
+    .prepare(
+      `SELECT id FROM horarios
+       WHERE LOWER(aula) = LOWER(?)
+         AND dia = ?
+         AND id != ?
+         AND horaInicio < ?
+         AND horaFin > ?`
+    )
+    .get(horario.aula, horario.dia, idActual ?? -1, horario.horaFin, horario.horaInicio);
+
+  if (choqueAula) {
+    return 'El aula ya está ocupada en ese horario';
   }
 
   return null;
@@ -805,6 +941,233 @@ app.get('/api/profesores/:id/coincidencias', (req, res) => {
   } catch (error) {
     console.error(error);
     return sendError(res, 500, 'Error al calcular coincidencias');
+  }
+});
+
+app.get('/api/horarios', (req, res) => {
+  try {
+    const profesorIdQuery = req.query?.profesorId;
+    const diaQuery = req.query?.dia;
+
+    let profesorId = null;
+    if (profesorIdQuery !== undefined && profesorIdQuery !== null && profesorIdQuery !== '') {
+      profesorId = Number(profesorIdQuery);
+      if (!Number.isInteger(profesorId) || profesorId <= 0) {
+        return sendError(res, 400, 'El ID del profesor es inválido');
+      }
+
+      const profesor = db.prepare('SELECT 1 FROM profesores WHERE id = ?').get(profesorId);
+      if (!profesor) {
+        return sendError(res, 404, 'El profesor no existe');
+      }
+    }
+
+    const dia = normalizeDia(diaQuery);
+    if (diaQuery !== undefined && diaQuery !== null && diaQuery !== '' && !dia) {
+      return sendError(res, 400, 'El día indicado no es válido');
+    }
+
+    let query = `
+      SELECT h.*
+      FROM horarios h
+      LEFT JOIN profesores p ON p.id = h.profesorId
+      WHERE 1 = 1
+    `;
+    const params = [];
+
+    if (profesorId !== null) {
+      query += ' AND h.profesorId = ?';
+      params.push(profesorId);
+    }
+
+    if (dia) {
+      query += ' AND h.dia = ?';
+      params.push(dia);
+    }
+
+    query += `
+      ORDER BY CASE h.dia
+        WHEN 'Lunes' THEN 1
+        WHEN 'Martes' THEN 2
+        WHEN 'Miércoles' THEN 3
+        WHEN 'Jueves' THEN 4
+        WHEN 'Viernes' THEN 5
+        WHEN 'Sábado' THEN 6
+        ELSE 7
+      END ASC,
+      h.horaInicio ASC,
+      p.nombre ASC,
+      p.apellido ASC
+    `;
+
+    const horarios = db.prepare(query).all(...params);
+    return res.json(horarios.map((horario) => buildHorarioPayload(horario)));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al obtener los horarios');
+  }
+});
+
+app.get('/api/horarios/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return sendError(res, 400, 'ID de horario inválido');
+    }
+
+    const horario = db
+      .prepare('SELECT * FROM horarios WHERE id = ?')
+      .get(id);
+
+    if (!horario) {
+      return sendError(res, 404, 'Horario no encontrado');
+    }
+
+    return res.json(buildHorarioPayload(horario));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al leer el horario');
+  }
+});
+
+app.post('/api/horarios', (req, res) => {
+  try {
+    const nuevo = normalizarHorarioInput(req.body);
+
+    if (!Number.isInteger(nuevo.profesorId) || nuevo.profesorId <= 0) {
+      return sendError(res, 400, 'El profesor es obligatorio');
+    }
+
+    const profesor = db
+      .prepare('SELECT 1 FROM profesores WHERE id = ?')
+      .get(nuevo.profesorId);
+
+    if (!profesor) {
+      return sendError(res, 404, 'El profesor no existe');
+    }
+
+    const errorValidacion = validarHorario(nuevo);
+
+    if (errorValidacion) {
+      return sendError(res, 400, errorValidacion);
+    }
+
+    const result = db.prepare(
+      'INSERT INTO horarios (profesorId, materia, dia, horaInicio, horaFin, aula, grupo) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      nuevo.profesorId,
+      nuevo.materia,
+      nuevo.dia,
+      nuevo.horaInicio,
+      nuevo.horaFin,
+      nuevo.aula,
+      nuevo.grupo
+    );
+
+    const horarioCreado = db
+      .prepare('SELECT * FROM horarios WHERE id = ?')
+      .get(Number(result.lastInsertRowid));
+
+    return res.status(201).json(buildHorarioPayload(horarioCreado));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al crear el horario');
+  }
+});
+
+app.put('/api/horarios/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return sendError(res, 400, 'ID de horario inválido');
+    }
+
+    const existente = db
+      .prepare('SELECT * FROM horarios WHERE id = ?')
+      .get(id);
+
+    if (!existente) {
+      return sendError(res, 404, 'Horario no encontrado');
+    }
+
+    const actualizado = normalizarHorarioInput({
+      ...existente,
+      ...req.body,
+      profesorId: req.body?.profesorId ?? existente.profesorId
+    });
+
+    if (!Number.isInteger(actualizado.profesorId) || actualizado.profesorId <= 0) {
+      return sendError(res, 400, 'El profesor es obligatorio');
+    }
+
+    const profesor = db
+      .prepare('SELECT 1 FROM profesores WHERE id = ?')
+      .get(actualizado.profesorId);
+
+    if (!profesor) {
+      return sendError(res, 404, 'El profesor no existe');
+    }
+
+    const errorValidacion = validarHorario(actualizado, id);
+
+    if (errorValidacion) {
+      return sendError(res, 400, errorValidacion);
+    }
+
+    db.prepare(
+      `UPDATE horarios
+       SET profesorId = ?, materia = ?, dia = ?, horaInicio = ?, horaFin = ?, aula = ?, grupo = ?
+       WHERE id = ?`
+    ).run(
+      actualizado.profesorId,
+      actualizado.materia,
+      actualizado.dia,
+      actualizado.horaInicio,
+      actualizado.horaFin,
+      actualizado.aula,
+      actualizado.grupo,
+      id
+    );
+
+    const horarioActualizado = db
+      .prepare('SELECT * FROM horarios WHERE id = ?')
+      .get(id);
+
+    return res.json(buildHorarioPayload(horarioActualizado));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al actualizar el horario');
+  }
+});
+
+app.delete('/api/horarios/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return sendError(res, 400, 'ID de horario inválido');
+    }
+
+    const horario = db
+      .prepare('SELECT * FROM horarios WHERE id = ?')
+      .get(id);
+
+    if (!horario) {
+      return sendError(res, 404, 'Horario no encontrado');
+    }
+
+    const eliminado = buildHorarioPayload(horario);
+    db.prepare('DELETE FROM horarios WHERE id = ?').run(id);
+
+    return res.json({
+      mensaje: 'Horario eliminado correctamente',
+      horario: eliminado
+    });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al eliminar el horario');
   }
 });
 

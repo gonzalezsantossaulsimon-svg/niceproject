@@ -14,6 +14,7 @@
     <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
     <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
     <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
+    <a href="horarios.html" class="w3-bar-item w3-button w3-right">Horarios</a>
     <a href="evaluaciones.html" class="w3-bar-item w3-button w3-right">Evaluaciones</a>
     <a href="#" id="logout" class="w3-bar-item w3-button w3-right">Salir</a>
   </div>
@@ -60,6 +61,14 @@
           <a href="evaluaciones.html" class="w3-btn w3-indigo w3-round">Ver evaluaciones</a>
         </div>
       </div>
+      <div class="w3-third">
+        <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
+          <i class="fa fa-calendar w3-xxxlarge w3-text-indigo"></i>
+          <h3>Horarios</h3>
+          <p>Total registrados: <b id="totalHorarios">Cargando información...</b></p>
+          <a href="horarios.html" class="w3-btn w3-indigo w3-round">Ver horarios</a>
+        </div>
+      </div>
     </div>
 
     <div id="mensajeError" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
@@ -71,13 +80,14 @@
         <p>Profesores: <b id="resumenProfesores">Cargando información...</b></p>
         <p>Academias: <b id="resumenAcademias">Cargando información...</b></p>
         <p>Coincidencias: <b id="resumenCoincidencias">Cargando información...</b></p>
+        <p>Horarios: <b id="resumenHorarios">Cargando información...</b></p>
         <p>Promedio de materias por profesor: <b id="promedioMaterias">Cargando información...</b></p>
       </div>
     </div>
   </div>
 
   <script type="module">
-    import { getProfesores, getAcademias, getCoincidencias, getEvaluaciones } from './js/api.js';
+    import { getProfesores, getAcademias, getCoincidencias, getEvaluaciones, getHorarios } from './js/api.js';
     import { requiereSesion, cerrarSesion } from './js/auth.js';
 
     const user = requiereSesion();
@@ -101,6 +111,8 @@
       promedioMaterias: document.getElementById('promedioMaterias'),
       totalEvaluaciones: document.getElementById('totalEvaluaciones'),
       promedioEvaluaciones: document.getElementById('promedioEvaluaciones'),
+      totalHorarios: document.getElementById('totalHorarios'),
+      resumenHorarios: document.getElementById('resumenHorarios'),
       mensajeError: document.getElementById('mensajeError')
     };
 
@@ -121,10 +133,11 @@
 
     async function cargarResumen() {
       const errores = [];
-      const [resultadoProfesores, resultadoAcademias, resultadoEvaluaciones] = await Promise.allSettled([
+      const [resultadoProfesores, resultadoAcademias, resultadoEvaluaciones, resultadoHorarios] = await Promise.allSettled([
         getProfesores(),
         getAcademias(),
-        getEvaluaciones()
+        getEvaluaciones(),
+        getHorarios()
       ]);
 
       let profesores = null;
@@ -180,6 +193,19 @@
         errores.push(`No se pudieron cargar las evaluaciones. ${detalle || ''}`.trim());
         establecerTexto(elementos.totalEvaluaciones, 'No disponible');
         establecerTexto(elementos.promedioEvaluaciones, 'No disponible');
+      }
+
+      if (resultadoHorarios.status === 'fulfilled' && Array.isArray(resultadoHorarios.value)) {
+        const total = resultadoHorarios.value.length;
+        establecerTexto(elementos.totalHorarios, String(total));
+        establecerTexto(elementos.resumenHorarios, String(total));
+      } else {
+        const detalle = resultadoHorarios.status === 'rejected'
+          ? resultadoHorarios.reason?.message
+          : 'La respuesta recibida no es válida.';
+        errores.push(`No se pudieron cargar los horarios. ${detalle || ''}`.trim());
+        establecerTexto(elementos.totalHorarios, 'No disponible');
+        establecerTexto(elementos.resumenHorarios, 'No disponible');
       }
 
       if (profesores) {

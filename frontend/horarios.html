@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horarios</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
+    <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
+    <a href="horarios.html" class="w3-bar-item w3-button w3-right">Horarios</a>
+    <a href="evaluaciones.html" class="w3-bar-item w3-button w3-right">Evaluaciones</a>
+  </div>
+
+  <div class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo">Horarios</h1>
+    <button class="w3-btn w3-green w3-round" onclick="window.location.href='horario-form.html'">
+      <i class="fa fa-plus"></i> Nuevo horario
+    </button>
+
+    <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
+      <div class="w3-row-padding">
+        <div class="w3-col l3 m6 w3-margin-bottom">
+          <label for="filtroProfesor"><b>Profesor</b></label>
+          <select class="w3-select w3-border" id="filtroProfesor">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="w3-col l3 m6 w3-margin-bottom">
+          <label for="filtroDia"><b>Día</b></label>
+          <select class="w3-select w3-border" id="filtroDia">
+            <option value="">Todos</option>
+            <option value="Lunes">Lunes</option>
+            <option value="Martes">Martes</option>
+            <option value="Miércoles">Miércoles</option>
+            <option value="Jueves">Jueves</option>
+            <option value="Viernes">Viernes</option>
+            <option value="Sábado">Sábado</option>
+          </select>
+        </div>
+        <div class="w3-col l2 m6 w3-margin-bottom">
+          <label for="filtroMateria"><b>Materia</b></label>
+          <input class="w3-input w3-border" id="filtroMateria" type="text" placeholder="Materia">
+        </div>
+        <div class="w3-col l2 m6 w3-margin-bottom">
+          <label for="filtroAula"><b>Aula</b></label>
+          <input class="w3-input w3-border" id="filtroAula" type="text" placeholder="Aula">
+        </div>
+        <div class="w3-col l2 m6 w3-margin-bottom">
+          <label for="filtroGrupo"><b>Grupo</b></label>
+          <input class="w3-input w3-border" id="filtroGrupo" type="text" placeholder="Grupo">
+        </div>
+      </div>
+      <p class="w3-container w3-text-grey" id="contador" aria-live="polite">Mostrando 0 horarios</p>
+    </div>
+
+    <div id="msg" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top" style="display:none;" role="alert"></div>
+
+    <div class="w3-margin-top">
+      <button type="button" class="w3-btn w3-indigo w3-round" id="btnTabla">Vista tabla</button>
+      <button type="button" class="w3-btn w3-white w3-border w3-round" id="btnSemanal">Vista semanal</button>
+    </div>
+
+    <div id="vistaTabla" class="w3-card-4 w3-white w3-margin-top w3-padding-16">
+      <table class="w3-table-all w3-hoverable">
+        <thead>
+          <tr class="w3-indigo">
+            <th>Día</th>
+            <th>Hora</th>
+            <th>Profesor</th>
+            <th>No. empleado</th>
+            <th>Materia</th>
+            <th>Aula</th>
+            <th>Grupo</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div id="vistaSemanal" class="w3-card-4 w3-white w3-margin-top w3-padding-16" style="display:none;">
+      <div id="semana" class="w3-row-padding"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getHorarios, getProfesores, eliminarHorario } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+
+    requiereSesion();
+
+    const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const tbody = document.getElementById('tbody');
+    const semana = document.getElementById('semana');
+    const msg = document.getElementById('msg');
+    const contador = document.getElementById('contador');
+    const filtroProfesor = document.getElementById('filtroProfesor');
+    const filtroDia = document.getElementById('filtroDia');
+    const filtroMateria = document.getElementById('filtroMateria');
+    const filtroAula = document.getElementById('filtroAula');
+    const filtroGrupo = document.getElementById('filtroGrupo');
+    const vistaTabla = document.getElementById('vistaTabla');
+    const vistaSemanal = document.getElementById('vistaSemanal');
+
+    let horarios = [];
+    let profesores = [];
+
+    function mostrarError(mensaje) {
+      msg.textContent = mensaje;
+      msg.style.display = 'block';
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function limpiarError() {
+      msg.textContent = '';
+      msg.style.display = 'none';
+    }
+
+    function crearCelda(texto) {
+      const td = document.createElement('td');
+      td.textContent = texto == null ? '' : String(texto);
+      return td;
+    }
+
+    function getProfesorLabel(profesor) {
+      return `${profesor.numeroEmpleado} - ${profesor.nombre} ${profesor.apellido}`.trim();
+    }
+
+    function obtenerHorariosFiltrados() {
+      const profesorSeleccionado = filtroProfesor.value;
+      const diaSeleccionado = filtroDia.value;
+      const materiaTexto = filtroMateria.value.trim().toLowerCase();
+      const aulaTexto = filtroAula.value.trim().toLowerCase();
+      const grupoTexto = filtroGrupo.value.trim().toLowerCase();
+
+      return horarios.filter((horario) => {
+        const coincideProfesor = !profesorSeleccionado || String(horario.profesorId) === profesorSeleccionado;
+        const coincideDia = !diaSeleccionado || horario.dia === diaSeleccionado;
+        const coincideMateria = !materiaTexto || horario.materia.toLowerCase().includes(materiaTexto);
+        const coincideAula = !aulaTexto || horario.aula.toLowerCase().includes(aulaTexto);
+        const coincideGrupo = !grupoTexto || (horario.grupo || '').toLowerCase().includes(grupoTexto);
+        return coincideProfesor && coincideDia && coincideMateria && coincideAula && coincideGrupo;
+      });
+    }
+
+    function renderTabla() {
+      const filtrados = obtenerHorariosFiltrados();
+      contador.textContent = `Mostrando ${filtrados.length} horarios`;
+      tbody.replaceChildren();
+
+      if (filtrados.length === 0) {
+        const fila = document.createElement('tr');
+        const celda = document.createElement('td');
+        celda.colSpan = 8;
+        celda.className = 'w3-center w3-text-grey';
+        celda.textContent = 'No se encontraron horarios';
+        fila.appendChild(celda);
+        tbody.appendChild(fila);
+        return;
+      }
+
+      filtrados.forEach((horario) => {
+        const fila = document.createElement('tr');
+        fila.append(
+          crearCelda(horario.dia),
+          crearCelda(`${horario.horaInicio} - ${horario.horaFin}`),
+          crearCelda(horario.profesorNombre),
+          crearCelda(horario.numeroEmpleado),
+          crearCelda(horario.materia),
+          crearCelda(horario.aula),
+          crearCelda(horario.grupo || '—'),
+          document.createElement('td')
+        );
+
+        const acciones = fila.lastChild;
+        acciones.className = 'w3-center';
+
+        const botonEditar = document.createElement('button');
+        botonEditar.type = 'button';
+        botonEditar.className = 'w3-button w3-blue w3-small w3-margin-right';
+        botonEditar.textContent = 'Editar';
+        botonEditar.addEventListener('click', () => {
+          window.location.href = `horario-form.html?id=${encodeURIComponent(horario.id)}`;
+        });
+
+        const botonEliminar = document.createElement('button');
+        botonEliminar.type = 'button';
+        botonEliminar.className = 'w3-button w3-red w3-small';
+        botonEliminar.textContent = 'Eliminar';
+        botonEliminar.addEventListener('click', async () => {
+          const confirmar = window.confirm('¿Eliminar este horario?');
+          if (!confirmar) {
+            return;
+          }
+
+          try {
+            await eliminarHorario(horario.id);
+            limpiarError();
+            await cargarHorarios();
+          } catch (error) {
+            mostrarError(error.message || 'No se pudo eliminar el horario');
+          }
+        });
+
+        acciones.appendChild(botonEditar);
+        acciones.appendChild(botonEliminar);
+        tbody.appendChild(fila);
+      });
+    }
+
+    function renderSemanal() {
+      const filtrados = obtenerHorariosFiltrados();
+      semana.replaceChildren();
+
+      dias.forEach((dia) => {
+        const columna = document.createElement('div');
+        columna.className = 'w3-col l2 m6 s12 w3-margin-bottom';
+
+        const card = document.createElement('div');
+        card.className = 'w3-card-4 w3-light-grey w3-padding';
+
+        const titulo = document.createElement('h4');
+        titulo.className = 'w3-text-indigo';
+        titulo.textContent = dia;
+
+        const lista = document.createElement('div');
+        const items = filtrados.filter((horario) => horario.dia === dia).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+
+        if (items.length === 0) {
+          const vacio = document.createElement('p');
+          vacio.className = 'w3-text-grey';
+          vacio.textContent = 'Sin clases';
+          lista.appendChild(vacio);
+        } else {
+          items.forEach((horario) => {
+            const bloque = document.createElement('div');
+            bloque.className = 'w3-panel w3-white w3-border w3-margin-top w3-padding-small';
+
+            const hora = document.createElement('div');
+            hora.className = 'w3-small w3-text-indigo';
+            hora.textContent = `${horario.horaInicio} - ${horario.horaFin}`;
+
+            const nombre = document.createElement('div');
+            nombre.textContent = horario.profesorNombre;
+
+            const materia = document.createElement('div');
+            materia.textContent = horario.materia;
+
+            const detalles = document.createElement('div');
+            detalles.className = 'w3-small w3-text-grey';
+            detalles.textContent = `${horario.aula}${horario.grupo ? ` · ${horario.grupo}` : ''}`;
+
+            bloque.appendChild(hora);
+            bloque.appendChild(nombre);
+            bloque.appendChild(materia);
+            bloque.appendChild(detalles);
+            lista.appendChild(bloque);
+          });
+        }
+
+        card.appendChild(titulo);
+        card.appendChild(lista);
+        columna.appendChild(card);
+        semana.appendChild(columna);
+      });
+    }
+
+    function renderVista() {
+      const modoTabla = vistaTabla.style.display !== 'none';
+      if (modoTabla) {
+        renderTabla();
+      } else {
+        renderSemanal();
+      }
+    }
+
+    async function cargarProfesores() {
+      profesores = await getProfesores();
+      filtroProfesor.replaceChildren();
+
+      const opcionTodos = document.createElement('option');
+      opcionTodos.value = '';
+      opcionTodos.textContent = 'Todos';
+      filtroProfesor.appendChild(opcionTodos);
+
+      profesores.forEach((profesor) => {
+        const opcion = document.createElement('option');
+        opcion.value = String(profesor.id);
+        opcion.textContent = getProfesorLabel(profesor);
+        filtroProfesor.appendChild(opcion);
+      });
+    }
+
+    async function cargarHorarios() {
+      try {
+        limpiarError();
+        horarios = await getHorarios();
+        renderVista();
+      } catch (error) {
+        mostrarError(error.message || 'No se pudieron cargar los horarios');
+      }
+    }
+
+    filtroProfesor.addEventListener('change', renderVista);
+    filtroDia.addEventListener('change', renderVista);
+    filtroMateria.addEventListener('input', renderVista);
+    filtroAula.addEventListener('input', renderVista);
+    filtroGrupo.addEventListener('input', renderVista);
+
+    document.getElementById('btnTabla').addEventListener('click', () => {
+      vistaTabla.style.display = 'block';
+      vistaSemanal.style.display = 'none';
+      document.getElementById('btnTabla').className = 'w3-btn w3-indigo w3-round';
+      document.getElementById('btnSemanal').className = 'w3-btn w3-white w3-border w3-round';
+      renderTabla();
+    });
+
+    document.getElementById('btnSemanal').addEventListener('click', () => {
+      vistaTabla.style.display = 'none';
+      vistaSemanal.style.display = 'block';
+      document.getElementById('btnTabla').className = 'w3-btn w3-white w3-border w3-round';
+      document.getElementById('btnSemanal').className = 'w3-btn w3-indigo w3-round';
+      renderSemanal();
+    });
+
+    await cargarProfesores();
+    await cargarHorarios();
+  </script>
+</body>
+</html>
