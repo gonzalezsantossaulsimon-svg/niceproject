@@ -4,36 +4,28 @@ Proyecto académico para la materia de Desarrollo Rápido de Aplicaciones.
 
 ## Descripción
 
-Sistema web académico para administrar profesores, academias, coincidencias entre materias y evaluaciones docentes con calificaciones de 0 a 10.
+Sistema web académico para gestionar profesores, academias y materias, consultar coincidencias entre materias, registrar evaluaciones docentes con calificaciones de 0 a 10 y administrar horarios. Incluye un dashboard para consultar la información del sistema.
 
-## Cambios de almacenamiento
+## Tecnologías y componentes
 
-Antes el prototipo usaba `backend/db.json` como almacenamiento activo. Ahora el sistema usa SQLite como almacenamiento principal.
-
-- `backend/db.json` sigue existiendo como respaldo, fuente de migración y datos iniciales.
-- El almacenamiento activo es `backend/niceproject.db`.
-- La base usa `better-sqlite3` con claves foráneas activadas.
-- La recreación del contenido de la base puede hacerse ejecutando `npm run migrate`.
-
-## Tecnologías
-
-- HTML5
-- JavaScript ES Modules
-- W3CSS
-- Node.js y Express
-- CORS
-- SQLite con `better-sqlite3`
-- Git y GitHub
+- Backend: Node.js y Express.
+- Base de datos: SQLite mediante `better-sqlite3`, con claves foráneas activadas.
+- Frontend: HTML, JavaScript y W3CSS.
+- `frontend-server.js` sirve los archivos del frontend en `http://localhost:5500`.
+- `backend/database.js` inicializa el esquema de SQLite.
+- `backend/migrate-json-to-sqlite.js` importa los datos iniciales de JSON a SQLite.
+- `INICIAR_NICEPROJECT.bat` instala dependencias si hacen falta, ejecuta la migración y arranca backend y frontend.
 
 ## Estructura del proyecto
 
 ```text
 niceproject/
+├── INICIAR_NICEPROJECT.bat
+├── frontend-server.js
 ├── backend/
 │   ├── database.js
 │   ├── db.json
 │   ├── migrate-json-to-sqlite.js
-│   ├── niceproject.db
 │   ├── package-lock.json
 │   ├── package.json
 │   ├── README.md
@@ -42,6 +34,8 @@ niceproject/
 │   ├── js/
 │   │   ├── api.js
 │   │   └── auth.js
+│   ├── horarios.html
+│   ├── horario-form.html
 │   ├── academia-detalle.html
 │   ├── academia-form.html
 │   ├── academias.html
@@ -55,9 +49,15 @@ niceproject/
 └── README.md
 ```
 
+## Almacenamiento e instalación
+
+`backend/niceproject.db` **no se versiona en Git**. Cada instalación genera su propia base SQLite al ejecutarse la migración inicial. El archivo `backend/db.json` se conserva en el repositorio como fuente de los datos iniciales para esa migración; no es el almacenamiento activo.
+
+Para iniciar fácilmente el proyecto en Windows, ejecuta `INICIAR_NICEPROJECT.bat` desde la raíz del repositorio. El archivo instala las dependencias del backend si no están instaladas, ejecuta `npm run migrate` desde `backend/` y, si todo termina correctamente, arranca backend y frontend y abre el navegador. La migración es idempotente, por lo que el iniciador puede ejecutarse cada vez sin borrar la base de datos existente.
+
 ## Ejecución
 
-Se requiere Node.js y npm. Desde la carpeta `backend/` ejecuta:
+Se requiere Node.js y npm. Como alternativa al iniciador, desde la carpeta `backend/` ejecuta:
 
 ```bash
 cd backend
@@ -66,20 +66,30 @@ npm run migrate
 npm start
 ```
 
-La API queda disponible en `http://localhost:3000` y el frontend debe seguir consumiendo la misma API sin cambios funcionales.
+La API queda disponible en `http://localhost:3000` y `frontend-server.js` sirve el frontend en `http://localhost:5500/login.html`.
 
 ## Base de datos SQLite
 
-La base `backend/niceproject.db` contiene estas tablas principales:
+El esquema SQLite contiene las siguientes tablas:
 
-- `usuarios`: credenciales del prototipo y datos básicos del usuario administrador.
+- `usuarios`: credenciales y datos básicos de acceso.
 - `academias`: datos de cada academia y clave única.
 - `profesores`: información del personal académico y su relación con una academia.
-- `materias_profesor`: materias por profesor con nivel 0 a 10.
+- `materias_profesor`: materias por profesor con nivel de 0 a 10.
 - `materias_academia`: materias asignadas por academia.
 - `evaluaciones`: calificaciones y comentarios asociados a cada profesor.
+- `horarios`: materia, día, horas, aula, grupo y profesor.
+- `migrations`: registro de migraciones ejecutadas para evitar importar dos veces los datos iniciales.
 
 Se usan relaciones con `FOREIGN KEY` y restricciones para mantener integridad referencial.
+
+## Funcionalidades
+
+- Gestión de profesores y academias.
+- Consulta de coincidencias entre las materias de profesores y las asignadas a sus academias.
+- Registro y consulta de evaluaciones.
+- Administración de horarios desde `horarios.html` y `horario-form.html`.
+- Dashboard de resumen del sistema.
 
 ## Credenciales de demostración
 

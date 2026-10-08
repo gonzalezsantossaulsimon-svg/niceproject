@@ -16,7 +16,7 @@ El servidor escucha en `http://localhost:3000`. La ruta `GET /` devuelve un mens
 
 ## Base de datos y migración
 
-El archivo principal es `backend/niceproject.db`. Se inicializa desde `backend/database.js` y se crea la estructura con SQL ejecutado al arrancar el backend.
+El archivo principal es `backend/niceproject.db`. Se inicializa desde `database.js` y se crea la estructura con SQL ejecutado al arrancar el backend. Este archivo no se versiona en Git: cada instalación genera su propia base. `db.json` se conserva como fuente de los datos iniciales para la migración.
 
 La migración inicial desde el prototipo JSON se realiza con:
 
@@ -34,6 +34,8 @@ Este comando lee `db.json`, importa los datos en SQLite y guarda un registro en 
 - `materias_profesor`: materias propias de cada profesor y su nivel.
 - `materias_academia`: materias asignadas a cada academia.
 - `evaluaciones`: calificaciones y comentarios registradas para profesores.
+- `horarios`: materia, día, intervalo de horas, aula, grupo y profesor.
+- `migrations`: registro que hace idempotente la importación inicial desde JSON.
 
 Se usan foreign keys y restricciones para mantener integridad y evitar datos inconsistentes.
 
@@ -68,6 +70,16 @@ La clave se normaliza a mayúsculas. Para crear una academia, clave y nombre son
 - `DELETE /api/evaluaciones/:id`
 
 La calificación acepta decimales entre 0 y 10; el comentario se recorta y queda limitado a 500 caracteres. `fecha` se genera en el backend con `new Date().toISOString()`.
+
+### Horarios
+
+- `GET /api/horarios`
+- `GET /api/horarios/:id`
+- `POST /api/horarios`
+- `PUT /api/horarios/:id`
+- `DELETE /api/horarios/:id`
+
+El frontend incluye `horarios.html` para consultar horarios y `horario-form.html` para crearlos y editarlos.
 
 ### Autenticación
 
