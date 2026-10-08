@@ -17,7 +17,7 @@
   "author": "Saul Gonzalez",
   "license": "ISC",
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "12.11.1",
     "cors": "^2.8.6",
     "express": "^5.2.1"
   }
