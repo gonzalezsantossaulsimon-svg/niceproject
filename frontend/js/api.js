@@ -1,5 +1,113 @@
 const API_URL = 'http://localhost:3000/api';
 
+async function procesarRespuestaApi(response, mensajePredeterminado) {
+  const texto = await response.text();
+  let resultado = null;
+
+  try {
+    resultado = texto ? JSON.parse(texto) : null;
+  } catch {}
+
+  if (!response.ok) {
+    throw new Error(resultado?.error || mensajePredeterminado);
+  }
+
+  return resultado;
+}
+
+async function solicitarCatalogo(ruta, metodo, data, mensajePredeterminado) {
+  const opciones = { method: metodo };
+
+  if (data !== undefined) {
+    opciones.headers = { 'Content-Type': 'application/json' };
+    opciones.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(`${API_URL}${ruta}`, opciones);
+  return procesarRespuestaApi(response, mensajePredeterminado);
+}
+
+// -------- CATÁLOGOS ACADÉMICOS --------
+export async function getMaterias() {
+  return solicitarCatalogo('/materias', 'GET', undefined, 'Error al obtener las materias');
+}
+
+export async function getMateria(id) {
+  return solicitarCatalogo(`/materias/${encodeURIComponent(id)}`, 'GET', undefined, 'Error al obtener la materia');
+}
+
+export async function crearMateria(data) {
+  return solicitarCatalogo('/materias', 'POST', data, 'Error al crear la materia');
+}
+
+export async function actualizarMateria(id, data) {
+  return solicitarCatalogo(`/materias/${encodeURIComponent(id)}`, 'PUT', data, 'Error al actualizar la materia');
+}
+
+export async function eliminarMateria(id) {
+  return solicitarCatalogo(`/materias/${encodeURIComponent(id)}`, 'DELETE', undefined, 'Error al eliminar la materia');
+}
+
+export async function getSalones() {
+  return solicitarCatalogo('/salones', 'GET', undefined, 'Error al obtener los salones');
+}
+
+export async function getSalon(id) {
+  return solicitarCatalogo(`/salones/${encodeURIComponent(id)}`, 'GET', undefined, 'Error al obtener el salón');
+}
+
+export async function crearSalon(data) {
+  return solicitarCatalogo('/salones', 'POST', data, 'Error al crear el salón');
+}
+
+export async function actualizarSalon(id, data) {
+  return solicitarCatalogo(`/salones/${encodeURIComponent(id)}`, 'PUT', data, 'Error al actualizar el salón');
+}
+
+export async function eliminarSalon(id) {
+  return solicitarCatalogo(`/salones/${encodeURIComponent(id)}`, 'DELETE', undefined, 'Error al eliminar el salón');
+}
+
+export async function getGrupos() {
+  return solicitarCatalogo('/grupos', 'GET', undefined, 'Error al obtener los grupos');
+}
+
+export async function getGrupo(id) {
+  return solicitarCatalogo(`/grupos/${encodeURIComponent(id)}`, 'GET', undefined, 'Error al obtener el grupo');
+}
+
+export async function crearGrupo(data) {
+  return solicitarCatalogo('/grupos', 'POST', data, 'Error al crear el grupo');
+}
+
+export async function actualizarGrupo(id, data) {
+  return solicitarCatalogo(`/grupos/${encodeURIComponent(id)}`, 'PUT', data, 'Error al actualizar el grupo');
+}
+
+export async function eliminarGrupo(id) {
+  return solicitarCatalogo(`/grupos/${encodeURIComponent(id)}`, 'DELETE', undefined, 'Error al eliminar el grupo');
+}
+
+export async function getFranjasHorarias() {
+  return solicitarCatalogo('/franjas-horarias', 'GET', undefined, 'Error al obtener los horarios disponibles');
+}
+
+export async function getFranjaHoraria(id) {
+  return solicitarCatalogo(`/franjas-horarias/${encodeURIComponent(id)}`, 'GET', undefined, 'Error al obtener el horario disponible');
+}
+
+export async function crearFranjaHoraria(data) {
+  return solicitarCatalogo('/franjas-horarias', 'POST', data, 'Error al crear el horario disponible');
+}
+
+export async function actualizarFranjaHoraria(id, data) {
+  return solicitarCatalogo(`/franjas-horarias/${encodeURIComponent(id)}`, 'PUT', data, 'Error al actualizar el horario disponible');
+}
+
+export async function eliminarFranjaHoraria(id) {
+  return solicitarCatalogo(`/franjas-horarias/${encodeURIComponent(id)}`, 'DELETE', undefined, 'Error al eliminar el horario disponible');
+}
+
 // -------- PROFESORES --------
 export async function getProfesores() {
   const r = await fetch(`${API_URL}/profesores`);
@@ -164,18 +272,7 @@ export async function getCoincidencias(id) {
 
 // -------- EVALUACIONES --------
 async function procesarRespuestaEvaluacion(response, mensajePredeterminado) {
-  let resultado;
-  try {
-    resultado = await response.json();
-  } catch {
-    throw new Error(mensajePredeterminado);
-  }
-
-  if (!response.ok) {
-    throw new Error(resultado.error || mensajePredeterminado);
-  }
-
-  return resultado;
+  return procesarRespuestaApi(response, mensajePredeterminado);
 }
 
 export async function crearEvaluacion(data) {
