@@ -317,6 +317,318 @@ app.get('/', (req, res) => {
   res.send('API Profesores funcionando ✅');
 });
 
+function parseCatalogId(value) {
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+    return null;
+  }
+
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+function normalizePositiveInteger(value) {
+  if (typeof value === 'number' && Number.isSafeInteger(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function sendCatalogDatabaseError(res, error, catalog, phase) {
+  if (
+    error?.code === 'SQLITE_CONSTRAINT_UNIQUE'
+    || error?.code === 'SQLITE_CONSTRAINT_PRIMARYKEY'
+  ) {
+    return sendError(res, 409, catalog.duplicateMessage);
+  }
+
+  if (error?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+    if (phase === 'save' && catalog.foreignKeySaveMessage) {
+      return sendError(res, 400, catalog.foreignKeySaveMessage);
+    }
+
+    return sendError(res, 409, catalog.inUseMessage);
+  }
+
+  if (error?.code?.startsWith('SQLITE_CONSTRAINT_')) {
+    return sendError(res, 400, catalog.invalidMessage);
+  }
+
+  console.error(error);
+  return sendError(res, 500, catalog.internalErrorMessage);
+}
+
+function registerCatalogRoutes(catalog) {
+  const collectionPath = `/api/${catalog.path}`;
+  const insertSql = `INSERT INTO ${catalog.table} (${catalog.columns.join(', ')}) VALUES (${catalog.columns.map(() => '?').join(', ')})`;
+  const updateSql = `UPDATE ${catalog.table} SET ${catalog.columns.map((column) => `${column} = ?`).join(', ')} WHERE id = ?`;
+
+  app.get(collectionPath, (req, res) => {
+    try {
+      const records = db
+        .prepare(`SELECT * FROM ${catalog.table} ORDER BY ${catalog.orderBy}`)
+        .all();
+
+      return res.json(records);
+    } catch (error) {
+      return sendCatalogDatabaseError(res, error, catalog, 'read');
+    }
+  });
+
+  app.get(`${collectionPath}/:id`, (req, res) => {
+    const id = parseCatalogId(req.params.id);
+    if (id === null) {
+      return sendError(res, 400, 'ID inválido');
+    }
+
+    try {
+      const record = db.prepare(`SELECT * FROM ${catalog.table} WHERE id = ?`).get(id);
+      if (!record) {
+        return sendError(res, 404, `${catalog.label} no encontrado`);
+      }
+
+      return res.json(record);
+    } catch (error) {
+      return sendCatalogDatabaseError(res, error, catalog, 'read');
+    }
+  });
+
+  app.post(collectionPath, (req, res) => {
+    try {
+      const record = catalog.normalize(req.body);
+      const validationError = catalog.validate(record);
+      if (validationError) {
+        return sendError(res, 400, validationError);
+      }
+
+      if (catalog.isDuplicate(record)) {
+        return sendError(res, 409, catalog.duplicateMessage);
+      }
+
+      const result = db.prepare(insertSql).run(...catalog.columns.map((column) => record[column]));
+      const created = db.prepare(`SELECT * FROM ${catalog.table} WHERE id = ?`).get(result.lastInsertRowid);
+      return res.status(201).json(created);
+    } catch (error) {
+      return sendCatalogDatabaseError(res, error, catalog, 'save');
+    }
+  });
+
+  app.put(`${collectionPath}/:id`, (req, res) => {
+    const id = parseCatalogId(req.params.id);
+    if (id === null) {
+      return sendError(res, 400, 'ID inválido');
+    }
+
+    try {
+      const current = db.prepare(`SELECT id FROM ${catalog.table} WHERE id = ?`).get(id);
+      if (!current) {
+        return sendError(res, 404, `${catalog.label} no encontrado`);
+      }
+
+      const record = catalog.normalize(req.body);
+      const validationError = catalog.validate(record);
+      if (validationError) {
+        return sendError(res, 400, validationError);
+      }
+
+      if (catalog.isDuplicate(record, id)) {
+        return sendError(res, 409, catalog.duplicateMessage);
+      }
+
+      db.prepare(updateSql).run(...catalog.columns.map((column) => record[column]), id);
+      const updated = db.prepare(`SELECT * FROM ${catalog.table} WHERE id = ?`).get(id);
+      return res.json(updated);
+    } catch (error) {
+      return sendCatalogDatabaseError(res, error, catalog, 'save');
+    }
+  });
+
+  app.delete(`${collectionPath}/:id`, (req, res) => {
+    const id = parseCatalogId(req.params.id);
+    if (id === null) {
+      return sendError(res, 400, 'ID inválido');
+    }
+
+    try {
+      const current = db.prepare(`SELECT id FROM ${catalog.table} WHERE id = ?`).get(id);
+      if (!current) {
+        return sendError(res, 404, `${catalog.label} no encontrado`);
+      }
+
+      if (catalog.isInUse(id)) {
+        return sendError(res, 409, catalog.inUseMessage);
+      }
+
+      db.prepare(`DELETE FROM ${catalog.table} WHERE id = ?`).run(id);
+      return res.json({ mensaje: `${catalog.label} eliminado correctamente` });
+    } catch (error) {
+      return sendCatalogDatabaseError(res, error, catalog, 'delete');
+    }
+  });
+}
+
+registerCatalogRoutes({
+  path: 'materias',
+  table: 'materias',
+  label: 'Materia',
+  orderBy: 'clave, id',
+  columns: ['clave', 'nombre', 'academiaClave'],
+  duplicateMessage: 'La materia ya existe',
+  inUseMessage: 'La materia está siendo utilizada por un curso',
+  invalidMessage: 'Los datos de la materia no son válidos',
+  internalErrorMessage: 'Error al procesar la materia',
+  foreignKeySaveMessage: 'La academia seleccionada no existe',
+  normalize: (input = {}) => ({
+    clave: normalizeText(input?.clave).toUpperCase(),
+    nombre: normalizeText(input?.nombre),
+    academiaClave: input?.academiaClave == null
+      ? null
+      : typeof input.academiaClave === 'string'
+        ? normalizeText(input.academiaClave).toUpperCase() || null
+        : null,
+    academiaClaveInvalida: input?.academiaClave != null && typeof input.academiaClave !== 'string'
+  }),
+  validate: (record) => {
+    if (!record.clave || !record.nombre) {
+      return 'Clave y nombre son obligatorios';
+    }
+
+    if (record.academiaClaveInvalida) {
+      return 'La clave de academia debe ser texto';
+    }
+
+    if (
+      record.academiaClave
+      && !db.prepare('SELECT 1 FROM academias WHERE clave = ?').get(record.academiaClave)
+    ) {
+      return 'La academia seleccionada no existe';
+    }
+
+    return null;
+  },
+  isDuplicate: (record, id = -1) => {
+    if (db.prepare('SELECT 1 FROM materias WHERE clave = ? AND id != ?').get(record.clave, id)) {
+      return true;
+    }
+
+    return db.prepare('SELECT id, nombre FROM materias WHERE id != ?').all(id)
+      .some((materia) => materia.nombre.toLowerCase() === record.nombre.toLowerCase());
+  },
+  isInUse: (id) => Boolean(db.prepare('SELECT 1 FROM cursos WHERE materiaId = ?').get(id))
+});
+
+registerCatalogRoutes({
+  path: 'salones',
+  table: 'salones',
+  label: 'Salón',
+  orderBy: 'clave, id',
+  columns: ['clave', 'nombre', 'capacidad'],
+  duplicateMessage: 'El salón ya existe',
+  inUseMessage: 'El salón está siendo utilizado por un curso',
+  invalidMessage: 'Los datos del salón no son válidos',
+  internalErrorMessage: 'Error al procesar el salón',
+  normalize: (input = {}) => ({
+    clave: normalizeText(input?.clave).toUpperCase(),
+    nombre: normalizeText(input?.nombre),
+    capacidad: normalizePositiveInteger(input?.capacidad)
+  }),
+  validate: (record) => {
+    if (!record.clave || !record.nombre) {
+      return 'Clave y nombre son obligatorios';
+    }
+
+    if (record.capacidad === null || record.capacidad <= 0) {
+      return 'La capacidad debe ser un entero mayor a 0';
+    }
+
+    return null;
+  },
+  isDuplicate: (record, id = -1) => {
+    if (db.prepare('SELECT 1 FROM salones WHERE clave = ? AND id != ?').get(record.clave, id)) {
+      return true;
+    }
+
+    return db.prepare('SELECT id, nombre FROM salones WHERE id != ?').all(id)
+      .some((salon) => salon.nombre.toLowerCase() === record.nombre.toLowerCase());
+  },
+  isInUse: (id) => Boolean(db.prepare('SELECT 1 FROM cursos WHERE salonId = ?').get(id))
+});
+
+registerCatalogRoutes({
+  path: 'grupos',
+  table: 'grupos',
+  label: 'Grupo',
+  orderBy: 'clave, id',
+  columns: ['clave', 'nombre', 'cantidadAlumnos'],
+  duplicateMessage: 'El grupo ya existe',
+  inUseMessage: 'El grupo está siendo utilizado por un curso',
+  invalidMessage: 'Los datos del grupo no son válidos',
+  internalErrorMessage: 'Error al procesar el grupo',
+  normalize: (input = {}) => ({
+    clave: normalizeText(input?.clave).toUpperCase(),
+    nombre: normalizeText(input?.nombre),
+    cantidadAlumnos: normalizePositiveInteger(input?.cantidadAlumnos)
+  }),
+  validate: (record) => {
+    if (!record.clave || !record.nombre) {
+      return 'Clave y nombre son obligatorios';
+    }
+
+    if (record.cantidadAlumnos === null || record.cantidadAlumnos <= 0) {
+      return 'La cantidad de alumnos debe ser un entero mayor a 0';
+    }
+
+    return null;
+  },
+  isDuplicate: (record, id = -1) => Boolean(
+    db.prepare('SELECT 1 FROM grupos WHERE clave = ? AND id != ?').get(record.clave, id)
+  ),
+  isInUse: (id) => Boolean(db.prepare('SELECT 1 FROM cursos WHERE grupoId = ?').get(id))
+});
+
+registerCatalogRoutes({
+  path: 'franjas-horarias',
+  table: 'franjas_horarias',
+  label: 'Franja horaria',
+  orderBy: 'dia, horaInicio, horaFin, id',
+  columns: ['dia', 'horaInicio', 'horaFin'],
+  duplicateMessage: 'La franja horaria ya existe',
+  inUseMessage: 'La franja horaria está siendo utilizada por un curso',
+  invalidMessage: 'Los datos de la franja horaria no son válidos',
+  internalErrorMessage: 'Error al procesar la franja horaria',
+  normalize: (input = {}) => ({
+    dia: normalizeDia(input?.dia),
+    horaInicio: normalizeHora(input?.horaInicio),
+    horaFin: normalizeHora(input?.horaFin)
+  }),
+  validate: (record) => {
+    if (!record.dia) {
+      return 'El día debe ser uno de los días permitidos';
+    }
+
+    if (!record.horaInicio || !record.horaFin) {
+      return 'Las horas deben tener el formato HH:MM válido';
+    }
+
+    if (horaEnMinutos(record.horaInicio) >= horaEnMinutos(record.horaFin)) {
+      return 'La hora de inicio debe ser menor que la hora de fin';
+    }
+
+    return null;
+  },
+  isDuplicate: (record, id = -1) => Boolean(
+    db.prepare(
+      'SELECT 1 FROM franjas_horarias WHERE dia = ? AND horaInicio = ? AND horaFin = ? AND id != ?'
+    ).get(record.dia, record.horaInicio, record.horaFin, id)
+  ),
+  isInUse: (id) => Boolean(db.prepare('SELECT 1 FROM curso_horarios WHERE horarioId = ?').get(id))
+});
+
 app.get('/api/profesores', (req, res) => {
   try {
     const profesores = db
