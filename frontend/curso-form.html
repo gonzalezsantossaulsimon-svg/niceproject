@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Curso</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="w3-light-grey">
+  <div class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="cursos.html" class="w3-bar-item w3-button w3-right">Volver a cursos</a>
+  </div>
+
+  <main class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo" id="titulo">Nuevo curso</h1>
+    <form id="formulario" class="w3-card-4 w3-white w3-padding-16" style="max-width:900px;" novalidate>
+      <div class="w3-container">
+        <label class="w3-text-indigo" for="materiaId"><b>Materia *</b></label>
+        <select class="w3-select w3-border" id="materiaId" required>
+          <option value="">Cargando materias...</option>
+        </select>
+
+        <label class="w3-text-indigo w3-margin-top" for="profesorId"><b>Profesor *</b></label>
+        <select class="w3-select w3-border" id="profesorId" required>
+          <option value="">Cargando profesores...</option>
+        </select>
+
+        <label class="w3-text-indigo w3-margin-top" for="grupoId"><b>Grupo *</b></label>
+        <select class="w3-select w3-border" id="grupoId" required>
+          <option value="">Cargando grupos...</option>
+        </select>
+
+        <label class="w3-text-indigo w3-margin-top" for="salonId"><b>Salón *</b></label>
+        <select class="w3-select w3-border" id="salonId" required>
+          <option value="">Cargando salones...</option>
+        </select>
+
+        <fieldset class="w3-border w3-padding w3-margin-top">
+          <legend class="w3-text-indigo"><b>Horarios disponibles *</b></legend>
+          <p class="w3-text-grey">Selecciona una o varias franjas. Las selecciones son manuales.</p>
+          <div id="horarios" aria-live="polite">Cargando horarios...</div>
+        </fieldset>
+
+        <section class="w3-panel w3-pale-blue w3-leftbar w3-border-blue w3-margin-top"
+          aria-labelledby="resumenTitulo">
+          <h2 class="w3-medium w3-text-indigo" id="resumenTitulo"><b>Resumen de la selección</b></h2>
+          <div id="resumen" aria-live="polite"></div>
+        </section>
+
+        <div id="mensaje" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
+          role="alert" style="display:none;"></div>
+
+        <div class="w3-margin-top">
+          <button type="submit" class="w3-button w3-green w3-round" id="guardar" disabled>
+            <i class="fa fa-save" aria-hidden="true"></i> Guardar curso
+          </button>
+          <a href="cursos.html" class="w3-button w3-grey w3-round">Cancelar</a>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <script type="module" src="./js/curso-form.js"></script>
+</body>
+</html>

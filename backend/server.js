@@ -59,6 +59,43 @@ function horariosSeSolapan(inicioNuevo, finNuevo, inicioExistente, finExistente)
     && horaEnMinutos(finNuevo) > horaEnMinutos(inicioExistente);
 }
 
+function obtenerHorariosSeleccionados(horarioIds) {
+  const franjas = [];
+
+  for (const horarioId of horarioIds) {
+    const franja = db
+      .prepare('SELECT id, dia, horaInicio, horaFin FROM franjas_horarias WHERE id = ?')
+      .get(horarioId);
+
+    if (!franja) {
+      return null;
+    }
+
+    franjas.push(franja);
+  }
+
+  return franjas;
+}
+
+function haySolapamientoEntreFranjas(franjas) {
+  for (let i = 0; i < franjas.length; i += 1) {
+    for (let j = i + 1; j < franjas.length; j += 1) {
+      const actual = franjas[i];
+      const siguiente = franjas[j];
+
+      if (actual.dia !== siguiente.dia) {
+        continue;
+      }
+
+      if (horariosSeSolapan(actual.horaInicio, actual.horaFin, siguiente.horaInicio, siguiente.horaFin)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function getUltimoGrado(doctorado, maestria) {
   if (doctorado && normalizeText(doctorado) !== '') {
     return 'Doctorado';
@@ -1480,6 +1517,385 @@ app.delete('/api/horarios/:id', (req, res) => {
   } catch (error) {
     console.error(error);
     return sendError(res, 500, 'Error al eliminar el horario');
+  }
+});
+
+function buildCursoPayload(curso) {
+  const materia = db
+    .prepare('SELECT * FROM materias WHERE id = ?')
+    .get(curso.materiaId);
+
+  const profesor = db
+    .prepare('SELECT id, nombre, apellido, numeroEmpleado FROM profesores WHERE id = ?')
+    .get(curso.profesorId);
+
+  const grupo = db
+    .prepare('SELECT * FROM grupos WHERE id = ?')
+    .get(curso.grupoId);
+
+  const salon = db
+    .prepare('SELECT * FROM salones WHERE id = ?')
+    .get(curso.salonId);
+
+  const horarios = db
+    .prepare(`
+      SELECT fh.id, fh.dia, fh.horaInicio, fh.horaFin
+      FROM curso_horarios ch
+      INNER JOIN franjas_horarias fh ON fh.id = ch.horarioId
+      WHERE ch.cursoId = ?
+      ORDER BY fh.dia, fh.horaInicio, fh.horaFin, fh.id
+    `)
+    .all(curso.id);
+
+  return {
+    id: Number(curso.id),
+    materiaId: Number(curso.materiaId),
+    profesorId: Number(curso.profesorId),
+    grupoId: Number(curso.grupoId),
+    salonId: Number(curso.salonId),
+    materia: materia ? { ...materia } : null,
+    profesor: profesor ? { ...profesor } : null,
+    grupo: grupo ? { ...grupo } : null,
+    salon: salon ? { ...salon } : null,
+    horarioIds: horarios.map((horario) => Number(horario.id)),
+    horarios: horarios.map((horario) => ({
+      id: Number(horario.id),
+      dia: horario.dia,
+      horaInicio: horario.horaInicio,
+      horaFin: horario.horaFin
+    }))
+  };
+}
+
+function obtenerCursoConflictData(cursoId, profesorId, grupoId, salonId, horarioIds) {
+  const conflictoProfesor = db
+    .prepare(`
+      SELECT c.id, fh.dia, fh.horaInicio, fh.horaFin
+      FROM cursos c
+      INNER JOIN curso_horarios ch ON ch.cursoId = c.id
+      INNER JOIN franjas_horarias fh ON fh.id = ch.horarioId
+      WHERE c.profesorId = ? AND c.id != ?
+    `)
+    .all(profesorId, cursoId ?? -1);
+
+  const conflictoSalon = db
+    .prepare(`
+      SELECT c.id, fh.dia, fh.horaInicio, fh.horaFin
+      FROM cursos c
+      INNER JOIN curso_horarios ch ON ch.cursoId = c.id
+      INNER JOIN franjas_horarias fh ON fh.id = ch.horarioId
+      WHERE c.salonId = ? AND c.id != ?
+    `)
+    .all(salonId, cursoId ?? -1);
+
+  const conflictoGrupo = db
+    .prepare(`
+      SELECT c.id, fh.dia, fh.horaInicio, fh.horaFin
+      FROM cursos c
+      INNER JOIN curso_horarios ch ON ch.cursoId = c.id
+      INNER JOIN franjas_horarias fh ON fh.id = ch.horarioId
+      WHERE c.grupoId = ? AND c.id != ?
+    `)
+    .all(grupoId, cursoId ?? -1);
+
+  const franjasCurso = obtenerHorariosSeleccionados(horarioIds);
+
+  if (!franjasCurso) {
+    return {
+      conflictoProfesor,
+      conflictoSalon,
+      conflictoGrupo,
+      conflictoFranja: false
+    };
+  }
+
+  const conflictoFranja = haySolapamientoEntreFranjas(franjasCurso);
+
+  return {
+    conflictoProfesor,
+    conflictoSalon,
+    conflictoGrupo,
+    conflictoFranja
+  };
+}
+
+function validarCursoPayload(payload, cursoIdActual = null) {
+  const materiaId = normalizePositiveInteger(payload?.materiaId);
+  const profesorId = normalizePositiveInteger(payload?.profesorId);
+  const grupoId = normalizePositiveInteger(payload?.grupoId);
+  const salonId = normalizePositiveInteger(payload?.salonId);
+
+  if (!Number.isInteger(materiaId) || materiaId <= 0) {
+    return 'El campo materiaId es obligatorio';
+  }
+
+  if (!db.prepare('SELECT 1 FROM materias WHERE id = ?').get(materiaId)) {
+    return 'La materia seleccionada no existe';
+  }
+
+  if (!Number.isInteger(profesorId) || profesorId <= 0) {
+    return 'El campo profesorId es obligatorio';
+  }
+
+  if (!db.prepare('SELECT 1 FROM profesores WHERE id = ?').get(profesorId)) {
+    return 'El profesor seleccionado no existe';
+  }
+
+  if (!Number.isInteger(grupoId) || grupoId <= 0) {
+    return 'El campo grupoId es obligatorio';
+  }
+
+  if (!db.prepare('SELECT 1 FROM grupos WHERE id = ?').get(grupoId)) {
+    return 'El grupo seleccionado no existe';
+  }
+
+  if (!Number.isInteger(salonId) || salonId <= 0) {
+    return 'El campo salonId es obligatorio';
+  }
+
+  if (!db.prepare('SELECT 1 FROM salones WHERE id = ?').get(salonId)) {
+    return 'El salón seleccionado no existe';
+  }
+
+  if (!Array.isArray(payload?.horarioIds) || payload.horarioIds.length === 0) {
+    return 'Debe seleccionar al menos una franja horaria';
+  }
+
+  const horarioIds = [];
+  const idsVistos = new Set();
+
+  for (const rawHorarioId of payload.horarioIds) {
+    const horarioId = normalizePositiveInteger(rawHorarioId);
+
+    if (!Number.isInteger(horarioId) || horarioId <= 0) {
+      return 'Todos los horarios deben ser IDs válidos';
+    }
+
+    if (idsVistos.has(horarioId)) {
+      return 'No se pueden repetir horarios en el mismo curso';
+    }
+
+    idsVistos.add(horarioId);
+    horarioIds.push(horarioId);
+  }
+
+  const franjasCurso = obtenerHorariosSeleccionados(horarioIds);
+  if (!franjasCurso || franjasCurso.length !== horarioIds.length) {
+    return 'Una o varias franjas horarias no existen';
+  }
+
+  if (haySolapamientoEntreFranjas(franjasCurso)) {
+    return 'Las franjas seleccionadas para el curso no pueden solaparse entre sí';
+  }
+
+  const grupo = db
+    .prepare('SELECT cantidadAlumnos FROM grupos WHERE id = ?')
+    .get(grupoId);
+
+  const salon = db
+    .prepare('SELECT capacidad FROM salones WHERE id = ?')
+    .get(salonId);
+
+  if (salon.capacidad < grupo.cantidadAlumnos) {
+    return `El salón seleccionado tiene capacidad para ${salon.capacidad} alumnos y el grupo tiene ${grupo.cantidadAlumnos}.`;
+  }
+
+  const { conflictoProfesor, conflictoSalon, conflictoGrupo } = obtenerCursoConflictData(
+    cursoIdActual,
+    profesorId,
+    grupoId,
+    salonId,
+    horarioIds
+  );
+
+  for (const franja of conflictoProfesor) {
+    if (franjasCurso.some((nuevaFranja) => nuevaFranja.dia === franja.dia
+      && horariosSeSolapan(nuevaFranja.horaInicio, nuevaFranja.horaFin, franja.horaInicio, franja.horaFin))) {
+      return 'El profesor ya tiene otro curso asignado en ese horario.';
+    }
+  }
+
+  for (const franja of conflictoSalon) {
+    if (franjasCurso.some((nuevaFranja) => nuevaFranja.dia === franja.dia
+      && horariosSeSolapan(nuevaFranja.horaInicio, nuevaFranja.horaFin, franja.horaInicio, franja.horaFin))) {
+      return 'El salón ya está ocupado por otro curso en ese horario.';
+    }
+  }
+
+  for (const franja of conflictoGrupo) {
+    if (franjasCurso.some((nuevaFranja) => nuevaFranja.dia === franja.dia
+      && horariosSeSolapan(nuevaFranja.horaInicio, nuevaFranja.horaFin, franja.horaInicio, franja.horaFin))) {
+      return 'El grupo ya tiene otro curso asignado en ese horario.';
+    }
+  }
+
+  return null;
+}
+
+app.get('/api/cursos', (req, res) => {
+  try {
+    const cursos = db
+      .prepare('SELECT * FROM cursos ORDER BY id')
+      .all();
+
+    return res.json(cursos.map((curso) => buildCursoPayload(curso)));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al obtener los cursos');
+  }
+});
+
+app.get('/api/cursos/:id', (req, res) => {
+  try {
+    const id = parseCatalogId(req.params.id);
+
+    if (id === null) {
+      return sendError(res, 400, 'ID inválido');
+    }
+
+    const curso = db.prepare('SELECT * FROM cursos WHERE id = ?').get(id);
+
+    if (!curso) {
+      return sendError(res, 404, 'Curso no encontrado');
+    }
+
+    return res.json(buildCursoPayload(curso));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al obtener el curso');
+  }
+});
+
+app.post('/api/cursos', (req, res) => {
+  try {
+    const validacion = validarCursoPayload(req.body);
+
+    if (validacion) {
+      return sendError(res, 400, validacion);
+    }
+
+    const { materiaId, profesorId, grupoId, salonId, horarioIds } = req.body;
+
+    const tx = db.transaction(() => {
+      const result = db.prepare(
+        'INSERT INTO cursos (materiaId, profesorId, grupoId, salonId) VALUES (?, ?, ?, ?)'
+      ).run(materiaId, profesorId, grupoId, salonId);
+
+      const cursoId = Number(result.lastInsertRowid);
+
+      const insertCursoHorario = db.prepare(
+        'INSERT INTO curso_horarios (cursoId, horarioId) VALUES (?, ?)'
+      );
+
+      for (const horarioId of horarioIds) {
+        insertCursoHorario.run(cursoId, horarioId);
+      }
+
+      return cursoId;
+    });
+
+    const cursoId = tx();
+    const curso = db.prepare('SELECT * FROM cursos WHERE id = ?').get(cursoId);
+
+    return res.status(201).json(buildCursoPayload(curso));
+  } catch (error) {
+    console.error(error);
+
+    if (error?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+      return sendError(res, 400, 'La relación del curso contiene datos inválidos');
+    }
+
+    if (error?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return sendError(res, 409, 'La relación del curso ya existe');
+    }
+
+    return sendError(res, 500, 'Error al crear el curso');
+  }
+});
+
+app.put('/api/cursos/:id', (req, res) => {
+  try {
+    const id = parseCatalogId(req.params.id);
+
+    if (id === null) {
+      return sendError(res, 400, 'ID inválido');
+    }
+
+    const existente = db.prepare('SELECT * FROM cursos WHERE id = ?').get(id);
+    if (!existente) {
+      return sendError(res, 404, 'Curso no encontrado');
+    }
+
+    const validacion = validarCursoPayload(req.body, id);
+    if (validacion) {
+      return sendError(res, 400, validacion);
+    }
+
+    const { materiaId, profesorId, grupoId, salonId, horarioIds } = req.body;
+
+    const tx = db.transaction(() => {
+      db.prepare(
+        'UPDATE cursos SET materiaId = ?, profesorId = ?, grupoId = ?, salonId = ? WHERE id = ?'
+      ).run(materiaId, profesorId, grupoId, salonId, id);
+
+      db.prepare('DELETE FROM curso_horarios WHERE cursoId = ?').run(id);
+
+      const insertCursoHorario = db.prepare(
+        'INSERT INTO curso_horarios (cursoId, horarioId) VALUES (?, ?)'
+      );
+
+      for (const horarioId of horarioIds) {
+        insertCursoHorario.run(id, horarioId);
+      }
+    });
+
+    tx();
+    const cursoActualizado = db.prepare('SELECT * FROM cursos WHERE id = ?').get(id);
+
+    return res.json(buildCursoPayload(cursoActualizado));
+  } catch (error) {
+    console.error(error);
+
+    if (error?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+      return sendError(res, 400, 'La relación del curso contiene datos inválidos');
+    }
+
+    if (error?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return sendError(res, 409, 'La relación del curso ya existe');
+    }
+
+    return sendError(res, 500, 'Error al actualizar el curso');
+  }
+});
+
+app.delete('/api/cursos/:id', (req, res) => {
+  try {
+    const id = parseCatalogId(req.params.id);
+
+    if (id === null) {
+      return sendError(res, 400, 'ID inválido');
+    }
+
+    const curso = db.prepare('SELECT * FROM cursos WHERE id = ?').get(id);
+    if (!curso) {
+      return sendError(res, 404, 'Curso no encontrado');
+    }
+
+    const payload = buildCursoPayload(curso);
+    db.prepare('DELETE FROM cursos WHERE id = ?').run(id);
+
+    return res.json({
+      mensaje: 'Curso eliminado correctamente',
+      curso: payload
+    });
+  } catch (error) {
+    console.error(error);
+
+    if (error?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+      return sendError(res, 409, 'No se puede eliminar el curso porque está asociado a datos relacionados');
+    }
+
+    return sendError(res, 500, 'Error al eliminar el curso');
   }
 });
 

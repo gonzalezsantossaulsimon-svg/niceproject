@@ -108,6 +108,27 @@ export async function eliminarFranjaHoraria(id) {
   return solicitarCatalogo(`/franjas-horarias/${encodeURIComponent(id)}`, 'DELETE', undefined, 'Error al eliminar el horario disponible');
 }
 
+// -------- CURSOS --------
+export async function getCursos() {
+  return solicitarCatalogo('/cursos', 'GET', undefined, 'Error al obtener los cursos');
+}
+
+export async function getCurso(id) {
+  return solicitarCatalogo(`/cursos/${encodeURIComponent(id)}`, 'GET', undefined, 'Error al obtener el curso');
+}
+
+export async function crearCurso(data) {
+  return solicitarCatalogo('/cursos', 'POST', data, 'Error al crear el curso');
+}
+
+export async function actualizarCurso(id, data) {
+  return solicitarCatalogo(`/cursos/${encodeURIComponent(id)}`, 'PUT', data, 'Error al actualizar el curso');
+}
+
+export async function eliminarCurso(id) {
+  return solicitarCatalogo(`/cursos/${encodeURIComponent(id)}`, 'DELETE', undefined, 'Error al eliminar el curso');
+}
+
 // -------- PROFESORES --------
 export async function getProfesores() {
   const r = await fetch(`${API_URL}/profesores`);
