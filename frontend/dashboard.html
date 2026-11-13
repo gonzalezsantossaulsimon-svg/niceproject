@@ -8,250 +8,163 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 </head>
 <body class="w3-light-grey">
-
-  <div class="w3-bar w3-indigo w3-padding">
+  <nav class="w3-bar w3-indigo w3-padding" aria-label="Navegación principal">
     <span class="w3-bar-item w3-large"><i class="fa fa-graduation-cap"></i> NiceProject</span>
     <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
-    <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
-    <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
     <a href="cursos.html" class="w3-bar-item w3-button w3-right">Cursos</a>
-    <a href="horarios.html" class="w3-bar-item w3-button w3-right">Horarios</a>
+    <a href="horarios.html" class="w3-bar-item w3-button w3-right">Horario general</a>
+    <a href="profesores.html" class="w3-bar-item w3-button w3-right">Profesores</a>
+    <a href="materias.html" class="w3-bar-item w3-button w3-right">Materias</a>
+    <a href="grupos.html" class="w3-bar-item w3-button w3-right">Grupos</a>
+    <a href="salones.html" class="w3-bar-item w3-button w3-right">Salones</a>
+    <a href="academias.html" class="w3-bar-item w3-button w3-right">Academias</a>
     <a href="evaluaciones.html" class="w3-bar-item w3-button w3-right">Evaluaciones</a>
     <a href="#" id="logout" class="w3-bar-item w3-button w3-right">Salir</a>
-  </div>
+  </nav>
 
-  <div class="w3-container w3-padding-32">
+  <main class="w3-container w3-padding-32">
     <h1 class="w3-center w3-text-indigo">Panel de Administración</h1>
     <p class="w3-center w3-text-grey" id="bienvenida"></p>
 
-    <div class="w3-row-padding w3-margin-top">
-      <div class="w3-third">
-        <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
-          <i class="fa fa-users w3-xxxlarge w3-text-indigo"></i>
-          <h3>Profesores</h3>
-          <p id="totalProfesores" aria-live="polite">Cargando información...</p>
-          <a href="profesores.html" class="w3-btn w3-indigo w3-round">Entrar</a>
+    <section class="w3-card-4 w3-indigo w3-padding-24 w3-margin-top" aria-labelledby="cursosTitulo">
+      <div class="w3-row-padding">
+        <div class="w3-twothird">
+          <h2 id="cursosTitulo">Cursos</h2>
+          <p>Gestiona las asignaciones de materia, profesor, grupo, salón y horarios.</p>
+          <a href="cursos.html" class="w3-button w3-white w3-text-indigo w3-round w3-margin-right">Gestionar cursos</a>
+          <a href="curso-form.html" class="w3-button w3-green w3-round">+ Nuevo curso</a>
+        </div>
+        <div class="w3-third w3-center">
+          <p class="w3-xxxlarge" id="totalCursos" aria-live="polite">…</p>
+          <p>cursos registrados</p>
         </div>
       </div>
-      <div class="w3-third">
-        <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
-          <i class="fa fa-building w3-xxxlarge w3-text-indigo"></i>
-          <h3>Academias</h3>
-          <p id="totalAcademias" aria-live="polite">Cargando información...</p>
-          <a href="academias.html" class="w3-btn w3-indigo w3-round">Entrar</a>
-        </div>
-      </div>
-      <div class="w3-third">
-        <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
-          <i class="fa fa-check-circle w3-xxxlarge w3-text-indigo"></i>
-          <h3>Coincidencias</h3>
-          <p id="totalCoincidencias" aria-live="polite">Cargando información...</p>
-          <p id="profesoresConCoincidencias">Cargando información...</p>
-          <a href="profesores.html" class="w3-btn w3-indigo w3-round">Ver</a>
-        </div>
-      </div>
-    </div>
+    </section>
 
-    <div class="w3-row-padding w3-margin-top">
-      <div class="w3-third">
-        <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
-          <i class="fa fa-star w3-xxxlarge w3-text-indigo"></i>
-          <h3>Evaluaciones</h3>
-          <p>Total registradas: <b id="totalEvaluaciones">Cargando información...</b></p>
-          <p>Promedio general: <b id="promedioEvaluaciones">Cargando información...</b></p>
-          <a href="evaluaciones.html" class="w3-btn w3-indigo w3-round">Ver evaluaciones</a>
+    <section class="w3-row-padding w3-margin-top" aria-label="Resumen de catálogos">
+      <div class="w3-quarter">
+        <div class="w3-card-4 w3-white w3-padding-16 w3-center">
+          <h2 class="w3-medium">Profesores</h2>
+          <p class="w3-xxlarge" id="totalProfesores" aria-live="polite">…</p>
+          <a href="profesores.html" class="w3-button w3-indigo w3-round">Ver profesores</a>
         </div>
       </div>
-      <div class="w3-third">
-        <div class="w3-card-4 w3-white w3-padding-16 w3-center w3-hover-shadow">
-          <i class="fa fa-calendar w3-xxxlarge w3-text-indigo"></i>
-          <h3>Horarios</h3>
-          <p>Total registrados: <b id="totalHorarios">Cargando información...</b></p>
-          <a href="horarios.html" class="w3-btn w3-indigo w3-round">Ver horarios</a>
+      <div class="w3-quarter">
+        <div class="w3-card-4 w3-white w3-padding-16 w3-center">
+          <h2 class="w3-medium">Materias</h2>
+          <p class="w3-xxlarge" id="totalMaterias" aria-live="polite">…</p>
+          <a href="materias.html" class="w3-button w3-indigo w3-round">Ver materias</a>
         </div>
       </div>
-    </div>
+      <div class="w3-quarter">
+        <div class="w3-card-4 w3-white w3-padding-16 w3-center">
+          <h2 class="w3-medium">Grupos</h2>
+          <p class="w3-xxlarge" id="totalGrupos" aria-live="polite">…</p>
+          <a href="grupos.html" class="w3-button w3-indigo w3-round">Ver grupos</a>
+        </div>
+      </div>
+      <div class="w3-quarter">
+        <div class="w3-card-4 w3-white w3-padding-16 w3-center">
+          <h2 class="w3-medium">Salones</h2>
+          <p class="w3-xxlarge" id="totalSalones" aria-live="polite">…</p>
+          <a href="salones.html" class="w3-button w3-indigo w3-round">Ver salones</a>
+        </div>
+      </div>
+    </section>
 
-    <section class="w3-card-4 w3-white w3-margin-top w3-padding-16" aria-labelledby="catalogosTitulo">
-      <h2 class="w3-container w3-text-indigo" id="catalogosTitulo">Catálogos académicos</h2>
+    <section class="w3-card-4 w3-white w3-padding-16 w3-margin-top" aria-labelledby="accesosTitulo">
+      <h2 class="w3-container w3-text-indigo" id="accesosTitulo">Accesos principales</h2>
       <div class="w3-container">
-        <a href="cursos.html" class="w3-button w3-green w3-round w3-margin-right w3-margin-bottom">Cursos</a>
+        <a href="cursos.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Cursos</a>
+        <a href="horarios.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Horario general</a>
+        <a href="profesores.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Profesores</a>
         <a href="materias.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Materias</a>
-        <a href="salones.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Salones</a>
         <a href="grupos.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Grupos</a>
-        <a href="franjas-horarias.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Horarios disponibles</a>
+        <a href="salones.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Salones</a>
+        <a href="academias.html" class="w3-button w3-indigo w3-round w3-margin-right w3-margin-bottom">Academias</a>
+        <a href="evaluaciones.html" class="w3-button w3-indigo w3-round w3-margin-bottom">Evaluaciones</a>
+      </div>
+    </section>
+
+    <section class="w3-card-4 w3-white w3-padding-16 w3-margin-top" aria-labelledby="evaluacionesTitulo">
+      <h2 class="w3-container w3-text-indigo" id="evaluacionesTitulo">Evaluaciones</h2>
+      <div class="w3-container">
+        <p>Total registradas: <b id="totalEvaluaciones">Cargando información...</b></p>
+        <p>Promedio general: <b id="promedioEvaluaciones">Cargando información...</b></p>
+        <a href="evaluaciones.html" class="w3-button w3-indigo w3-round">Ver evaluaciones</a>
       </div>
     </section>
 
     <div id="mensajeError" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
       role="alert" style="display:none;"></div>
-
-    <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
-      <h2 class="w3-container w3-text-indigo">Resumen del sistema</h2>
-      <div class="w3-container">
-        <p>Profesores: <b id="resumenProfesores">Cargando información...</b></p>
-        <p>Academias: <b id="resumenAcademias">Cargando información...</b></p>
-        <p>Coincidencias: <b id="resumenCoincidencias">Cargando información...</b></p>
-        <p>Horarios: <b id="resumenHorarios">Cargando información...</b></p>
-        <p>Promedio de materias por profesor: <b id="promedioMaterias">Cargando información...</b></p>
-      </div>
-    </div>
-  </div>
+  </main>
 
   <script type="module">
-    import { getProfesores, getAcademias, getCoincidencias, getEvaluaciones, getHorarios } from './js/api.js';
+    import {
+      getCursos,
+      getProfesores,
+      getMaterias,
+      getGrupos,
+      getSalones,
+      getEvaluaciones
+    } from './js/api.js';
     import { requiereSesion, cerrarSesion } from './js/auth.js';
 
     const user = requiereSesion();
-    if (user) {
-      document.getElementById('bienvenida').textContent = `Bienvenido, ${user.nombre}`;
-    }
-    document.getElementById('logout').addEventListener('click', (e) => {
-      e.preventDefault();
+    if (user) document.getElementById('bienvenida').textContent = `Bienvenido, ${user.nombre}`;
+    document.getElementById('logout').addEventListener('click', event => {
+      event.preventDefault();
       cerrarSesion();
       window.location.href = 'login.html';
     });
 
     const elementos = {
-      totalProfesores: document.getElementById('totalProfesores'),
-      totalAcademias: document.getElementById('totalAcademias'),
-      totalCoincidencias: document.getElementById('totalCoincidencias'),
-      profesoresConCoincidencias: document.getElementById('profesoresConCoincidencias'),
-      resumenProfesores: document.getElementById('resumenProfesores'),
-      resumenAcademias: document.getElementById('resumenAcademias'),
-      resumenCoincidencias: document.getElementById('resumenCoincidencias'),
-      promedioMaterias: document.getElementById('promedioMaterias'),
-      totalEvaluaciones: document.getElementById('totalEvaluaciones'),
-      promedioEvaluaciones: document.getElementById('promedioEvaluaciones'),
-      totalHorarios: document.getElementById('totalHorarios'),
-      resumenHorarios: document.getElementById('resumenHorarios'),
-      mensajeError: document.getElementById('mensajeError')
+      cursos: document.getElementById('totalCursos'),
+      profesores: document.getElementById('totalProfesores'),
+      materias: document.getElementById('totalMaterias'),
+      grupos: document.getElementById('totalGrupos'),
+      salones: document.getElementById('totalSalones'),
+      evaluaciones: document.getElementById('totalEvaluaciones'),
+      promedio: document.getElementById('promedioEvaluaciones'),
+      mensaje: document.getElementById('mensajeError')
     };
 
-    function establecerTexto(elemento, texto) {
-      elemento.textContent = texto;
-    }
-
-    function mostrarErrores(errores) {
-      if (errores.length === 0) {
-        elementos.mensajeError.style.display = 'none';
-        elementos.mensajeError.textContent = '';
-        return;
-      }
-
-      elementos.mensajeError.textContent = errores.join(' ');
-      elementos.mensajeError.style.display = 'block';
-    }
-
     async function cargarResumen() {
-      const errores = [];
-      const [resultadoProfesores, resultadoAcademias, resultadoEvaluaciones, resultadoHorarios] = await Promise.allSettled([
+      const resultados = await Promise.allSettled([
+        getCursos(),
         getProfesores(),
-        getAcademias(),
-        getEvaluaciones(),
-        getHorarios()
+        getMaterias(),
+        getGrupos(),
+        getSalones(),
+        getEvaluaciones()
       ]);
+      const errores = [];
+      const claves = ['cursos', 'profesores', 'materias', 'grupos', 'salones', 'evaluaciones'];
 
-      let profesores = null;
-
-      if (resultadoProfesores.status === 'fulfilled' && Array.isArray(resultadoProfesores.value)) {
-        profesores = resultadoProfesores.value;
-        const total = profesores.length;
-        establecerTexto(elementos.totalProfesores, `${total} ${total === 1 ? 'profesor registrado' : 'profesores registrados'}`);
-        establecerTexto(elementos.resumenProfesores, String(total));
-
-        const totalMaterias = profesores.reduce(
-          (suma, profesor) => suma + (Array.isArray(profesor.materias) ? profesor.materias.length : 0),
-          0
-        );
-        const promedio = total === 0 ? 0 : totalMaterias / total;
-        establecerTexto(elementos.promedioMaterias, promedio.toFixed(1));
-      } else {
-        const detalle = resultadoProfesores.status === 'rejected'
-          ? resultadoProfesores.reason?.message
-          : 'La respuesta recibida no es válida.';
-        errores.push(`No se pudieron cargar los profesores. ${detalle || ''}`.trim());
-        establecerTexto(elementos.totalProfesores, 'No disponible');
-        establecerTexto(elementos.resumenProfesores, 'No disponible');
-        establecerTexto(elementos.promedioMaterias, 'No disponible');
-      }
-
-      if (resultadoAcademias.status === 'fulfilled' && Array.isArray(resultadoAcademias.value)) {
-        const total = resultadoAcademias.value.length;
-        establecerTexto(elementos.totalAcademias, `${total} ${total === 1 ? 'academia registrada' : 'academias registradas'}`);
-        establecerTexto(elementos.resumenAcademias, String(total));
-      } else {
-        const detalle = resultadoAcademias.status === 'rejected'
-          ? resultadoAcademias.reason?.message
-          : 'La respuesta recibida no es válida.';
-        errores.push(`No se pudieron cargar las academias. ${detalle || ''}`.trim());
-        establecerTexto(elementos.totalAcademias, 'No disponible');
-        establecerTexto(elementos.resumenAcademias, 'No disponible');
-      }
-
-      if (resultadoEvaluaciones.status === 'fulfilled' && Array.isArray(resultadoEvaluaciones.value)) {
-        const evaluaciones = resultadoEvaluaciones.value;
-        const total = evaluaciones.length;
-        establecerTexto(elementos.totalEvaluaciones, String(total));
-        establecerTexto(elementos.promedioEvaluaciones, total === 0
-          ? 'Sin evaluaciones'
-          : `${new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(
-              evaluaciones.reduce((suma, evaluacion) => suma + evaluacion.calificacion, 0) / total
-            )} / 10`);
-      } else {
-        const detalle = resultadoEvaluaciones.status === 'rejected'
-          ? resultadoEvaluaciones.reason?.message
-          : 'La respuesta recibida no es válida.';
-        errores.push(`No se pudieron cargar las evaluaciones. ${detalle || ''}`.trim());
-        establecerTexto(elementos.totalEvaluaciones, 'No disponible');
-        establecerTexto(elementos.promedioEvaluaciones, 'No disponible');
-      }
-
-      if (resultadoHorarios.status === 'fulfilled' && Array.isArray(resultadoHorarios.value)) {
-        const total = resultadoHorarios.value.length;
-        establecerTexto(elementos.totalHorarios, String(total));
-        establecerTexto(elementos.resumenHorarios, String(total));
-      } else {
-        const detalle = resultadoHorarios.status === 'rejected'
-          ? resultadoHorarios.reason?.message
-          : 'La respuesta recibida no es válida.';
-        errores.push(`No se pudieron cargar los horarios. ${detalle || ''}`.trim());
-        establecerTexto(elementos.totalHorarios, 'No disponible');
-        establecerTexto(elementos.resumenHorarios, 'No disponible');
-      }
-
-      if (profesores) {
-        const resultadosCoincidencias = await Promise.all(profesores.map(async profesor => {
-          try {
-            const resultado = await getCoincidencias(profesor.id);
-            if (resultado.error || !Array.isArray(resultado.coincidencias)) {
-              throw new Error(resultado.error || 'Respuesta de coincidencias no válida.');
-            }
-            return { total: resultado.coincidencias.length };
-          } catch (error) {
-            return { error };
+      resultados.forEach((resultado, indice) => {
+        const clave = claves[indice];
+        if (resultado.status === 'fulfilled' && Array.isArray(resultado.value)) {
+          elementos[clave].textContent = String(resultado.value.length);
+          if (clave === 'evaluaciones') {
+            const evaluaciones = resultado.value;
+            elementos.promedio.textContent = evaluaciones.length === 0
+              ? 'Sin evaluaciones'
+              : `${new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(
+                  evaluaciones.reduce((suma, item) => suma + Number(item.calificacion), 0) / evaluaciones.length
+                )} / 10`;
           }
-        }));
-
-        const coincidenciasValidas = resultadosCoincidencias.filter(resultado => !resultado.error);
-        const totalCoincidencias = coincidenciasValidas.reduce((suma, resultado) => suma + resultado.total, 0);
-        const profesoresConCoincidencias = coincidenciasValidas.filter(resultado => resultado.total > 0).length;
-        const fallidas = resultadosCoincidencias.length - coincidenciasValidas.length;
-
-        establecerTexto(elementos.totalCoincidencias, `${totalCoincidencias} coincidencias encontradas`);
-        establecerTexto(elementos.profesoresConCoincidencias, `${profesoresConCoincidencias} profesores con coincidencias`);
-        establecerTexto(elementos.resumenCoincidencias, String(totalCoincidencias));
-
-        if (fallidas > 0) {
-          errores.push(`No se pudieron cargar coincidencias de ${fallidas} ${fallidas === 1 ? 'profesor' : 'profesores'}; los totales incluyen solo las consultas correctas.`);
+        } else {
+          const detalle = resultado.status === 'rejected'
+            ? resultado.reason?.message
+            : 'La respuesta recibida no es válida.';
+          elementos[clave].textContent = 'No disponible';
+          if (clave === 'evaluaciones') elementos.promedio.textContent = 'No disponible';
+          errores.push(`No se pudieron cargar ${clave}. ${detalle || ''}`.trim());
         }
-      } else {
-        establecerTexto(elementos.totalCoincidencias, 'No disponible');
-        establecerTexto(elementos.profesoresConCoincidencias, 'No disponible');
-        establecerTexto(elementos.resumenCoincidencias, 'No disponible');
-      }
+      });
 
-      mostrarErrores(errores);
+      elementos.mensaje.textContent = errores.join(' ');
+      elementos.mensaje.style.display = errores.length ? 'block' : 'none';
     }
 
     cargarResumen();

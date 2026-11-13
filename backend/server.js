@@ -172,12 +172,14 @@ function normalizeProfesorInput(input = {}) {
     sni: normalizeText(input.sni) || 'Ninguno',
     perfilPRODEP: Boolean(input.perfilPRODEP),
     academiaId: normalizeAcademiaClave(input.academiaId),
-    materias: Array.isArray(input.materias)
-      ? input.materias.map((materia) => ({
+    materias: Object.prototype.hasOwnProperty.call(input, 'materias')
+      ? Array.isArray(input.materias)
+        ? input.materias.map((materia) => ({
           nombre: normalizeText(materia?.nombre),
           nivel: Number(materia?.nivel)
         }))
-      : []
+        : null
+      : undefined
   };
 }
 
@@ -204,6 +206,10 @@ function validarProfesor(profesor, idActual = null) {
 
   if (!academiaExiste) {
     return 'La academia seleccionada no existe';
+  }
+
+  if (profesor.materias === undefined) {
+    return null;
   }
 
   if (!Array.isArray(profesor.materias)) {
@@ -746,7 +752,7 @@ app.post('/api/profesores', (req, res) => {
         'INSERT INTO materias_profesor (profesorId, nombre, nivel) VALUES (?, ?, ?)'
       );
 
-      for (const materia of nuevo.materias) {
+      for (const materia of nuevo.materias || []) {
         insertMateria.run(profesorId, materia.nombre, materia.nivel);
       }
 
@@ -762,7 +768,7 @@ app.post('/api/profesores', (req, res) => {
         sni: nuevo.sni,
         perfilPRODEP: nuevo.perfilPRODEP,
         academiaId: nuevo.academiaId,
-        materias: nuevo.materias,
+        materias: nuevo.materias || [],
         ultimoGrado: getUltimoGrado(nuevo.doctorado, nuevo.maestria)
       };
     });
@@ -836,25 +842,23 @@ app.put('/api/profesores/:id', (req, res) => {
         id
       );
 
-      db.prepare('DELETE FROM materias_profesor WHERE profesorId = ?').run(id);
+      if (Array.isArray(actualizado.materias)) {
+        db.prepare('DELETE FROM materias_profesor WHERE profesorId = ?').run(id);
 
-      const insertMateria = db.prepare(
-        'INSERT INTO materias_profesor (profesorId, nombre, nivel) VALUES (?, ?, ?)'
-      );
+        const insertMateria = db.prepare(
+          'INSERT INTO materias_profesor (profesorId, nombre, nivel) VALUES (?, ?, ?)'
+        );
 
-      for (const materia of actualizado.materias) {
-        insertMateria.run(id, materia.nombre, materia.nivel);
+        for (const materia of actualizado.materias) {
+          insertMateria.run(id, materia.nombre, materia.nivel);
+        }
       }
     });
 
     tx();
 
-    return res.json({
-      ...actualizado,
-      id,
-      perfilPRODEP: actualizado.perfilPRODEP,
-      ultimoGrado: getUltimoGrado(actualizado.doctorado, actualizado.maestria)
-    });
+    const profesorActualizado = db.prepare('SELECT * FROM profesores WHERE id = ?').get(id);
+    return res.json(buildProfesorPayload(profesorActualizado));
   } catch (error) {
     console.error(error);
     return sendError(res, 500, 'Error al actualizar el profesor');
@@ -1158,6 +1162,10 @@ app.put('/api/academias/:clave', (req, res) => {
     const materiasAsignadas = Array.isArray(req.body?.materiasAsignadas)
       ? req.body.materiasAsignadas.map((materia) => normalizeText(materia))
       : [];
+    const materiasAsignadasEnviadas = Object.prototype.hasOwnProperty.call(
+      req.body || {},
+      'materiasAsignadas'
+    );
 
     const errorValidacion = validarAcademia(clave, nombre, materiasAsignadas);
 
@@ -1184,14 +1192,16 @@ app.put('/api/academias/:clave', (req, res) => {
         clave
       );
 
-      db.prepare('DELETE FROM materias_academia WHERE academiaClave = ?').run(clave);
+      if (materiasAsignadasEnviadas) {
+        db.prepare('DELETE FROM materias_academia WHERE academiaClave = ?').run(clave);
 
-      const insertMateria = db.prepare(
-        'INSERT INTO materias_academia (academiaClave, nombre) VALUES (?, ?)'
-      );
+        const insertMateria = db.prepare(
+          'INSERT INTO materias_academia (academiaClave, nombre) VALUES (?, ?)'
+        );
 
-      for (const materia of materiasAsignadas) {
-        insertMateria.run(clave, materia);
+        for (const materia of materiasAsignadas) {
+          insertMateria.run(clave, materia);
+        }
       }
     });
 
@@ -1205,7 +1215,10 @@ app.put('/api/academias/:clave', (req, res) => {
         .prepare('SELECT id FROM profesores WHERE academiaId = ? ORDER BY id')
         .pluck()
         .all(clave),
-      materiasAsignadas
+      materiasAsignadas: db
+        .prepare('SELECT nombre FROM materias_academia WHERE academiaClave = ? ORDER BY id')
+        .pluck()
+        .all(clave)
     });
   } catch (error) {
     console.error(error);

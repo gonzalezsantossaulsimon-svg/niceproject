@@ -21,7 +21,7 @@
     <div id="msg" class="w3-panel w3-pale-red w3-border w3-border-red"
       style="display:none;" role="alert"></div>
 
-    <h3 class="w3-text-indigo w3-margin-top">Materias asignadas</h3>
+    <h3 class="w3-text-indigo w3-margin-top">Materias del catálogo</h3>
     <ul id="materias" class="w3-ul w3-white w3-card-4"></ul>
 
     <h3 class="w3-text-indigo w3-margin-top">Integrantes</h3>
@@ -32,7 +32,6 @@
           <th>Nombre</th>
           <th>Especialidad</th>
           <th>Último grado</th>
-          <th>Coincidencias</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -40,7 +39,7 @@
   </div>
 
   <script type="module">
-    import { getAcademia } from './js/api.js';
+    import { getAcademia, getMaterias } from './js/api.js';
     import { requiereSesion } from './js/auth.js';
     requiereSesion();
 
@@ -50,28 +49,31 @@
     async function cargar() {
       const msg = document.getElementById('msg');
       try {
-        const a = await getAcademia(clave);
+        const [a, materiasCatalogo] = await Promise.all([getAcademia(clave), getMaterias()]);
         document.getElementById('nombre').textContent = a.nombre || '';
         document.getElementById('clave').textContent = a.clave || '';
         document.getElementById('descripcion').textContent = a.descripcion || '';
 
-        const materiasAsignadas = Array.isArray(a.materiasAsignadas) ? a.materiasAsignadas : [];
         const ul = document.getElementById('materias');
         ul.replaceChildren();
-        materiasAsignadas.forEach(materia => {
+        const materiasAcademia = materiasCatalogo.filter(materia => materia.academiaClave === a.clave);
+        materiasAcademia.forEach(materia => {
           const li = document.createElement('li');
           const icono = document.createElement('i');
           icono.className = 'fa fa-book w3-text-indigo';
           icono.setAttribute('aria-hidden', 'true');
-          li.append(icono, document.createTextNode(` ${materia}`));
+          li.append(icono, document.createTextNode(` ${materia.clave} — ${materia.nombre}`));
           ul.appendChild(li);
         });
+        if (materiasAcademia.length === 0) {
+          const li = document.createElement('li');
+          li.textContent = 'No hay materias del catálogo asignadas a esta academia.';
+          ul.appendChild(li);
+        }
 
         const tbody = document.getElementById('tbody');
         tbody.replaceChildren();
         (a.integrantesData || []).forEach(p => {
-          const materiasProfe = (p.materias || []).map(m => m.nombre);
-          const coincidencias = materiasAsignadas.filter(m => materiasProfe.includes(m));
           const grado = p.doctorado ? 'Doctorado' : p.maestria ? 'Maestría' : 'Licenciatura';
           const tr = document.createElement('tr');
 
@@ -83,17 +85,7 @@
           especialidad.textContent = p.especialidad || '';
           const ultimoGrado = document.createElement('td');
           ultimoGrado.textContent = grado;
-          const coincidenciasCelda = document.createElement('td');
-          const coincidenciasEtiqueta = document.createElement('span');
-          coincidenciasEtiqueta.className = coincidencias.length > 0
-            ? 'w3-tag w3-green'
-            : 'w3-tag w3-grey';
-          coincidenciasEtiqueta.textContent = coincidencias.length > 0
-            ? coincidencias.join(', ')
-            : 'Ninguna';
-          coincidenciasCelda.appendChild(coincidenciasEtiqueta);
-
-          tr.append(id, nombre, especialidad, ultimoGrado, coincidenciasCelda);
+          tr.append(id, nombre, especialidad, ultimoGrado);
           tbody.appendChild(tr);
         });
 

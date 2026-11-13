@@ -93,16 +93,6 @@
           </div>
         </div>
 
-        <hr class="w3-margin-top">
-        <h3 class="w3-text-indigo">Materias que imparte</h3>
-        <p class="w3-text-grey">El nivel de dominio debe ser un número entero entre 0 y 10.</p>
-
-        <div id="materiasContainer"></div>
-
-        <button type="button" class="w3-btn w3-blue w3-round w3-small" id="addMateria">
-          <i class="fa fa-plus"></i> Agregar materia
-        </button>
-
         <hr>
 
         <button type="submit" class="w3-btn w3-green w3-round" id="btnGuardar">
@@ -128,7 +118,6 @@
     const id = params.get('id');
 
     const form = document.getElementById('form');
-    const container = document.getElementById('materiasContainer');
     const msg = document.getElementById('msg');
     const btnGuardar = document.getElementById('btnGuardar');
     const numeroEmpleado = document.getElementById('numeroEmpleado');
@@ -151,54 +140,8 @@
         .slice(0, 6);
     });
 
-    function escaparHTML(texto) {
-      return String(texto)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
-    }
-
-    function agregarFilaMateria(nombre = '', nivel = 5) {
-      const div = document.createElement('div');
-      div.className = 'w3-row-padding w3-margin-bottom materia-row';
-
-      div.innerHTML = `
-        <div class="w3-col s7">
-          <input class="w3-input w3-border mat-nombre" type="text" maxlength="120"
-            placeholder="Nombre de materia" value="${escaparHTML(nombre)}">
-        </div>
-
-        <div class="w3-col s3">
-          <input class="w3-input w3-border mat-nivel" type="number"
-            min="0" max="10" step="1" value="${Number(nivel)}">
-        </div>
-
-        <div class="w3-col s2">
-          <button type="button" class="w3-button w3-red w3-round btn-del-mat"
-            title="Eliminar materia">
-            <i class="fa fa-times"></i>
-          </button>
-        </div>
-      `;
-
-      div.querySelector('.btn-del-mat').addEventListener('click', () => {
-        div.remove();
-      });
-
-      container.appendChild(div);
-    }
-
-    document.getElementById('addMateria').addEventListener('click', () => {
-      agregarFilaMateria();
-    });
-
     async function cargarProfesor() {
-      if (!id) {
-        agregarFilaMateria();
-        return;
-      }
+      if (!id) return;
 
       document.getElementById('titulo').textContent = 'Editar Profesor';
 
@@ -215,26 +158,9 @@
         document.getElementById('sni').value = p.sni || 'Ninguno';
         document.getElementById('perfilPRODEP').checked = Boolean(p.perfilPRODEP);
         document.getElementById('academiaId').value = p.academiaId || '';
-
-        container.innerHTML = '';
-
-        if (Array.isArray(p.materias) && p.materias.length > 0) {
-          p.materias.forEach(m => agregarFilaMateria(m.nombre, m.nivel));
-        } else {
-          agregarFilaMateria();
-        }
       } catch (err) {
         mostrarError(err.message || 'No fue posible cargar el profesor');
       }
-    }
-
-    function obtenerMaterias() {
-      return [...document.querySelectorAll('.materia-row')]
-        .map(row => ({
-          nombre: row.querySelector('.mat-nombre').value.trim(),
-          nivel: Number(row.querySelector('.mat-nivel').value)
-        }))
-        .filter(m => m.nombre !== '');
     }
 
     function validarFormulario(data) {
@@ -254,22 +180,6 @@
         return 'Debes seleccionar una academia.';
       }
 
-      const nombres = new Set();
-
-      for (const materia of data.materias) {
-        if (!Number.isInteger(materia.nivel) || materia.nivel < 0 || materia.nivel > 10) {
-          return 'Cada nivel de dominio debe ser un número entero entre 0 y 10.';
-        }
-
-        const nombreNormalizado = materia.nombre.toLowerCase();
-
-        if (nombres.has(nombreNormalizado)) {
-          return `La materia "${materia.nombre}" está repetida.`;
-        }
-
-        nombres.add(nombreNormalizado);
-      }
-
       return null;
     }
 
@@ -287,8 +197,7 @@
         doctorado: document.getElementById('doctorado').value.trim(),
         sni: document.getElementById('sni').value,
         perfilPRODEP: document.getElementById('perfilPRODEP').checked,
-        academiaId: document.getElementById('academiaId').value,
-        materias: obtenerMaterias()
+        academiaId: document.getElementById('academiaId').value
       };
 
       const error = validarFormulario(data);

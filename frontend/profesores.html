@@ -73,7 +73,6 @@
             <th>Especialidad</th>
             <th>Último grado</th>
             <th>Academia</th>
-            <th>Materias</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -146,7 +145,7 @@
       if (filtrados.length === 0) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 8;
+        td.colSpan = 7;
         td.className = 'w3-center w3-text-grey';
         td.textContent = 'No se encontraron profesores';
         tr.appendChild(td);
@@ -156,9 +155,6 @@
 
       filtrados.forEach(profesor => {
         const tr = document.createElement('tr');
-        const materias = (profesor.materias || [])
-          .map(materia => `${materia.nombre} (${materia.nivel})`)
-          .join(', ');
 
         tr.append(
           crearCelda(profesor.id),
@@ -166,8 +162,7 @@
           crearCelda(`${profesor.nombre || ''} ${profesor.apellido || ''}`.trim()),
           crearCelda(profesor.especialidad),
           crearCelda(profesor.ultimoGrado),
-          crearCelda(profesor.academiaId),
-          crearCelda(materias)
+          crearCelda(profesor.academiaId)
         );
 
         const acciones = document.createElement('td');
