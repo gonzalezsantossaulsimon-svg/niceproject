@@ -33,11 +33,7 @@
           <div class="w3-half">
             <label class="w3-text-indigo"><b>Academia *</b></label>
             <select class="w3-select w3-border" id="academiaId" required>
-              <option value="">-- Selecciona --</option>
-              <option value="ACAD01">ACAD01 - Sistemas</option>
-              <option value="ACAD02">ACAD02 - Redes</option>
-              <option value="ACAD03">ACAD03 - Matemáticas</option>
-              <option value="ACAD04">ACAD04 - Software</option>
+              <option value="">Cargando academias...</option>
             </select>
           </div>
         </div>
@@ -95,7 +91,7 @@
 
         <hr>
 
-        <button type="submit" class="w3-btn w3-green w3-round" id="btnGuardar">
+        <button type="submit" class="w3-btn w3-green w3-round" id="btnGuardar" disabled>
           <i class="fa fa-save"></i> Guardar
         </button>
 
@@ -109,7 +105,7 @@
   </div>
 
   <script type="module">
-    import { getProfesor, crearProfesor, actualizarProfesor } from './js/api.js';
+    import { getAcademias, getProfesor, crearProfesor, actualizarProfesor } from './js/api.js';
     import { requiereSesion } from './js/auth.js';
 
     requiereSesion();
@@ -139,6 +135,27 @@
         .replace(/[^A-Z0-9]/g, '')
         .slice(0, 6);
     });
+
+    async function cargarAcademias() {
+      const academias = await getAcademias();
+      if (!Array.isArray(academias)) {
+        throw new Error('La respuesta de academias no es válida.');
+      }
+
+      const select = document.getElementById('academiaId');
+      select.replaceChildren();
+      const vacio = document.createElement('option');
+      vacio.value = '';
+      vacio.textContent = '-- Selecciona --';
+      select.appendChild(vacio);
+
+      academias.forEach(academia => {
+        const opcion = document.createElement('option');
+        opcion.value = academia.clave;
+        opcion.textContent = `${academia.clave} — ${academia.nombre}`;
+        select.appendChild(opcion);
+      });
+    }
 
     async function cargarProfesor() {
       if (!id) return;
@@ -226,7 +243,17 @@
       }
     });
 
-    cargarProfesor();
+    async function inicializarFormulario() {
+      try {
+        await cargarAcademias();
+        await cargarProfesor();
+        btnGuardar.disabled = false;
+      } catch (error) {
+        mostrarError(error.message || 'No fue posible cargar las academias.');
+      }
+    }
+
+    inicializarFormulario();
   </script>
 </body>
 </html>
