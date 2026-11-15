@@ -31,10 +31,6 @@
         <label class="w3-text-indigo w3-margin-top"><b>Descripción</b></label>
         <textarea class="w3-input w3-border" id="descripcion" maxlength="500" rows="4"></textarea>
 
-        <label class="w3-text-indigo w3-margin-top"><b>Materias asignadas</b></label>
-        <textarea class="w3-input w3-border" id="materiasAsignadas" rows="5"
-          placeholder="Escribe una materia por línea"></textarea>
-
         <hr>
 
         <button type="submit" class="w3-btn w3-green w3-round" id="btnGuardar">
@@ -88,8 +84,6 @@
         clave.readOnly = true;
         document.getElementById('nombre').value = academia.nombre || '';
         document.getElementById('descripcion').value = academia.descripcion || '';
-        document.getElementById('materiasAsignadas').value =
-          (academia.materiasAsignadas || []).join('\n');
         btnGuardar.disabled = false;
       } catch (error) {
         mostrarError(error.message || 'No fue posible cargar la academia.');
@@ -103,11 +97,7 @@
 
       const data = {
         nombre: document.getElementById('nombre').value.trim(),
-        descripcion: document.getElementById('descripcion').value.trim(),
-        materiasAsignadas: document.getElementById('materiasAsignadas').value
-          .split('\n')
-          .map(materia => materia.trim())
-          .filter(Boolean)
+        descripcion: document.getElementById('descripcion').value.trim()
       };
 
       if (!claveEdicion) data.clave = clave.value.trim();

@@ -32,7 +32,7 @@
   </div>
 
   <script type="module">
-    import { getAcademias, eliminarAcademia } from './js/api.js';
+    import { getAcademias, getMaterias, eliminarAcademia } from './js/api.js';
     import { requiereSesion } from './js/auth.js';
     requiereSesion();
 
@@ -47,10 +47,19 @@
 
     async function cargar() {
       try {
-        const academias = await getAcademias();
-        if (!Array.isArray(academias)) {
-          throw new Error('La respuesta de academias no es válida.');
+        const [academias, materias] = await Promise.all([getAcademias(), getMaterias()]);
+        if (!Array.isArray(academias) || !Array.isArray(materias)) {
+          throw new Error('La respuesta de academias o materias no es válida.');
         }
+
+        const materiasPorAcademia = new Map();
+        materias.forEach(materia => {
+          if (!materia.academiaClave) return;
+          materiasPorAcademia.set(
+            materia.academiaClave,
+            (materiasPorAcademia.get(materia.academiaClave) || 0) + 1
+          );
+        });
 
         msg.textContent = '';
         msg.style.display = 'none';
@@ -85,13 +94,13 @@
             document.createTextNode(String((a.integrantes || []).length))
           );
 
-          const materias = document.createElement('p');
-          materias.className = 'w3-small';
+          const materiasCatalogo = document.createElement('p');
+          materiasCatalogo.className = 'w3-small';
           const etiquetaMaterias = document.createElement('b');
-          etiquetaMaterias.textContent = 'Materias asignadas: ';
-          materias.append(
+          etiquetaMaterias.textContent = 'Materias del catálogo: ';
+          materiasCatalogo.append(
             etiquetaMaterias,
-            document.createTextNode((a.materiasAsignadas || []).join(', '))
+            document.createTextNode(String(materiasPorAcademia.get(clave) || 0))
           );
 
           const acciones = document.createElement('div');
@@ -123,7 +132,7 @@
           eliminar.append(iconoEliminar, document.createTextNode(' Eliminar'));
 
           acciones.append(ver, editar, eliminar);
-          tarjeta.append(nombre, claveTexto, descripcion, integrantes, materias, acciones);
+          tarjeta.append(nombre, claveTexto, descripcion, integrantes, materiasCatalogo, acciones);
           col.appendChild(tarjeta);
           lista.appendChild(col);
         });

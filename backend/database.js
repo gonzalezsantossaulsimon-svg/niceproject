@@ -91,11 +91,83 @@ function initializeDatabase() {
       CHECK (dia IN ('Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'))
     );
 
+    CREATE TABLE IF NOT EXISTS materias (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clave TEXT NOT NULL UNIQUE,
+      nombre TEXT NOT NULL,
+      academiaClave TEXT,
+      FOREIGN KEY (academiaClave) REFERENCES academias(clave)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS salones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clave TEXT NOT NULL UNIQUE,
+      nombre TEXT NOT NULL,
+      capacidad INTEGER NOT NULL CHECK (capacidad > 0)
+    );
+
+    CREATE TABLE IF NOT EXISTS grupos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clave TEXT NOT NULL UNIQUE,
+      nombre TEXT NOT NULL,
+      cantidadAlumnos INTEGER NOT NULL CHECK (cantidadAlumnos > 0)
+    );
+
+    CREATE TABLE IF NOT EXISTS franjas_horarias (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dia TEXT NOT NULL
+        CHECK (dia IN ('Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado')),
+      horaInicio TEXT NOT NULL,
+      horaFin TEXT NOT NULL,
+      UNIQUE (dia, horaInicio, horaFin)
+    );
+
+    CREATE TABLE IF NOT EXISTS cursos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      materiaId INTEGER NOT NULL,
+      profesorId INTEGER NOT NULL,
+      grupoId INTEGER NOT NULL,
+      salonId INTEGER NOT NULL,
+      FOREIGN KEY (materiaId) REFERENCES materias(id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+      FOREIGN KEY (profesorId) REFERENCES profesores(id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+      FOREIGN KEY (grupoId) REFERENCES grupos(id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+      FOREIGN KEY (salonId) REFERENCES salones(id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
+    );
+
+    CREATE TABLE IF NOT EXISTS curso_horarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cursoId INTEGER NOT NULL,
+      horarioId INTEGER NOT NULL,
+      FOREIGN KEY (cursoId) REFERENCES cursos(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+      FOREIGN KEY (horarioId) REFERENCES franjas_horarias(id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+      UNIQUE (cursoId, horarioId)
+    );
+
     CREATE TABLE IF NOT EXISTS migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nombre TEXT NOT NULL UNIQUE,
       executed_at TEXT NOT NULL
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_materias_nombre_unique
+      ON materias (LOWER(nombre));
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_salones_nombre_unique
+      ON salones (LOWER(nombre));
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_materias_profesor_unique
       ON materias_profesor (profesorId, LOWER(nombre));

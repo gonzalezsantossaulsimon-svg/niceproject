@@ -34,11 +34,7 @@
         <div class="w3-col l3 m6 w3-margin-bottom">
           <label for="filtroAcademia"><b>Academia</b></label>
           <select class="w3-select w3-border" id="filtroAcademia">
-            <option value="">Todas las academias</option>
-            <option value="ACAD01">ACAD01</option>
-            <option value="ACAD02">ACAD02</option>
-            <option value="ACAD03">ACAD03</option>
-            <option value="ACAD04">ACAD04</option>
+            <option value="">Cargando academias...</option>
           </select>
         </div>
         <div class="w3-col l3 m6 w3-margin-bottom">
@@ -63,7 +59,7 @@
     <div id="msg" class="w3-panel w3-pale-red w3-border w3-border-red w3-margin-top"
       style="display:none;" role="alert"></div>
 
-    <div class="w3-card-4 w3-white w3-margin-top w3-padding-16">
+    <div class="w3-responsive w3-card-4 w3-white w3-margin-top w3-padding-16">
       <table class="w3-table-all w3-hoverable">
         <thead>
           <tr class="w3-indigo">
@@ -73,7 +69,6 @@
             <th>Especialidad</th>
             <th>Último grado</th>
             <th>Academia</th>
-            <th>Materias</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -83,7 +78,7 @@
   </div>
 
   <script type="module">
-    import { getProfesores, eliminarProfesor } from './js/api.js';
+    import { getAcademias, getProfesores, eliminarProfesor } from './js/api.js';
     import { requiereSesion } from './js/auth.js';
     requiereSesion();
 
@@ -146,7 +141,7 @@
       if (filtrados.length === 0) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 8;
+        td.colSpan = 7;
         td.className = 'w3-center w3-text-grey';
         td.textContent = 'No se encontraron profesores';
         tr.appendChild(td);
@@ -156,9 +151,6 @@
 
       filtrados.forEach(profesor => {
         const tr = document.createElement('tr');
-        const materias = (profesor.materias || [])
-          .map(materia => `${materia.nombre} (${materia.nivel})`)
-          .join(', ');
 
         tr.append(
           crearCelda(profesor.id),
@@ -166,8 +158,7 @@
           crearCelda(`${profesor.nombre || ''} ${profesor.apellido || ''}`.trim()),
           crearCelda(profesor.especialidad),
           crearCelda(profesor.ultimoGrado),
-          crearCelda(profesor.academiaId),
-          crearCelda(materias)
+          crearCelda(profesor.academiaId)
         );
 
         const acciones = document.createElement('td');
@@ -219,7 +210,27 @@
 
     async function cargar() {
       try {
-        profesores = await getProfesores();
+        const [resultadoProfesores, academias] = await Promise.all([
+          getProfesores(),
+          getAcademias()
+        ]);
+        if (!Array.isArray(resultadoProfesores) || !Array.isArray(academias)) {
+          throw new Error('La respuesta de profesores o academias no es válida.');
+        }
+
+        profesores = resultadoProfesores;
+        filtroAcademia.replaceChildren();
+        const todas = document.createElement('option');
+        todas.value = '';
+        todas.textContent = 'Todas las academias';
+        filtroAcademia.appendChild(todas);
+        academias.forEach(academia => {
+          const opcion = document.createElement('option');
+          opcion.value = academia.clave;
+          opcion.textContent = `${academia.clave} — ${academia.nombre}`;
+          filtroAcademia.appendChild(opcion);
+        });
+
         msg.textContent = '';
         msg.style.display = 'none';
         renderizar();
