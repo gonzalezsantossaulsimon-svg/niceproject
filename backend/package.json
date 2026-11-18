@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "migrate": "node migrate-json-to-sqlite.js"
+    "migrate": "node migrate-json-to-sqlite.js",
+    "test": "node --test"
   },
   "keywords": [
     "express",

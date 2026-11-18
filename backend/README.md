@@ -25,6 +25,9 @@ npm run migrate
 ```
 
 Este comando lee `db.json`, importa los datos en SQLite y guarda un registro en la tabla `migrations` para que la importación sea idempotente y no duplique registros si se vuelve a ejecutar.
+También ejecuta `migrations/seed_demo_catalogos.js`, un seed versionado que incorpora los grupos, salones y franjas horarias de demostración que aún no existan. Conserva los registros existentes, usa las claves de grupo/salón y la combinación día-hora para evitar duplicados, y no modifica cursos, profesores, academias ni materias.
+
+Para validar los catálogos sin usar la base local, se puede proporcionar `NICEPROJECT_DB_PATH` con una ruta de SQLite de prueba. Las pruebas automatizadas usan una base `:memory:` para la siembra y una base aislada para comprobar las rutas API.
 
 ## Tablas principales
 

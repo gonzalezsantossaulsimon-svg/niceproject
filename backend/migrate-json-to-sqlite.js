@@ -3,10 +3,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import getDatabase from './database.js';
 import { seedLegacyMaterias } from './migrations/seed_legacy_materias.js';
+import { seedDemoCatalogos } from './migrations/seed_demo_catalogos.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DB_PATH = path.join(__dirname, 'niceproject.db');
+const DB_PATH = process.env.NICEPROJECT_DB_PATH || path.join(__dirname, 'niceproject.db');
 const SOURCE_PATH = path.join(__dirname, 'db.json');
 const MIGRATION_NAME = 'initial_json_import';
 
@@ -23,6 +24,7 @@ async function runMigration() {
   if (alreadyExecuted) {
     console.log(`La migración '${MIGRATION_NAME}' ya fue ejecutada. No es necesario repetirla.`);
     seedLegacyMaterias(db);
+    seedDemoCatalogos(db);
     return;
   }
 
@@ -127,6 +129,7 @@ async function runMigration() {
   console.log(`Migración completada: '${MIGRATION_NAME}'.`);
   console.log(`Base SQLite creada en: ${DB_PATH}`);
   seedLegacyMaterias(db);
+  seedDemoCatalogos(db);
 }
 
 runMigration().catch((error) => {

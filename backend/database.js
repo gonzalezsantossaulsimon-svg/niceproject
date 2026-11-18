@@ -4,20 +4,16 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DB_PATH = path.join(__dirname, 'niceproject.db');
+const DB_PATH = process.env.NICEPROJECT_DB_PATH || path.join(__dirname, 'niceproject.db');
 
 let database;
 
-function initializeDatabase() {
-  if (database) {
-    return database;
-  }
+export function createDatabase(databasePath = DB_PATH) {
+  const db = new Database(databasePath);
+  db.pragma('foreign_keys = ON');
+  db.pragma('journal_mode = WAL');
 
-  database = new Database(DB_PATH);
-  database.pragma('foreign_keys = ON');
-  database.pragma('journal_mode = WAL');
-
-  database.exec(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS usuarios (
       id INTEGER PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
@@ -176,11 +172,15 @@ function initializeDatabase() {
       ON materias_academia (academiaClave, LOWER(nombre));
   `);
 
-  return database;
+  return db;
 }
 
 export function getDatabase() {
-  return initializeDatabase();
+  if (!database) {
+    database = createDatabase();
+  }
+
+  return database;
 }
 
 export default getDatabase;
