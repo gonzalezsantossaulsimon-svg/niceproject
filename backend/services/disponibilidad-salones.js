@@ -29,7 +29,7 @@ export function listarSalonesDisponibles(db, materiaId, grupoId, horarioIds, cur
         SELECT 1 FROM cursos c
         JOIN curso_horarios ch ON ch.cursoId = c.id
         JOIN franjas_horarias fh ON fh.id = ch.horarioId
-        WHERE c.salonId = ? AND c.id != ? AND fh.dia = ? 
+        WHERE c.salonId = ? AND c.id != ? AND fh.dia = ?
           AND fh.horaInicio < ? AND fh.horaFin > ?
       `).get(salon.id, cursoIdActual ?? -1, franja.dia, franja.horaFin, franja.horaInicio);
       if (ocupado) bloqueos.push(`Ocupado el ${franja.dia} ${franja.horaInicio}–${franja.horaFin}`);
