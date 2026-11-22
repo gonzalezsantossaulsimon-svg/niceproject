@@ -160,7 +160,7 @@ test('npm run migrate siembra los catálogos y las rutas API permiten validar GR
 
     assert.equal(grupos.length, 5);
     assert.equal(salones.length, 6);
-    assert.equal(franjas.length, 15);
+    assert.equal(franjas.length, 18);
     assert.equal(materias.length, 8);
     assert.equal(profesores.length, 16);
     assert.equal(academias.length, 4);
@@ -195,32 +195,48 @@ test('npm run migrate siembra los catálogos y las rutas API permiten validar GR
         [dia, '07:00', '09:00'],
         [dia, '09:00', '11:00'],
         [dia, '11:00', '13:00']
+      ]).concat([
+        ['Viernes', '08:00', '09:00'],
+        ['Viernes', '10:00', '11:00'],
+        ['Viernes', '12:00', '13:00']
       ]).sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]))
     );
 
-    const grupo = grupos.find((item) => item.clave === 'GRP-05');
+    const grupo = grupos.find((item) => item.clave === 'GRP-03');
     const salonInsuficiente = salones.find((item) => item.clave === 'A-101');
-    const salonSuficiente = salones.find((item) => item.clave === 'A-103');
+    const salonSuficiente = salones.find((item) => item.clave === 'LAB-02');
     const franja = franjas.find((item) => (
       item.dia === 'Lunes' && item.horaInicio === '07:00' && item.horaFin === '09:00'
     ));
-    const materia = materias.find((item) => profesores.some((profesor) => (
-      profesor.materias.some((asignada) => asignada.nombre.toLowerCase() === item.nombre.toLowerCase())
-    )));
+    const materia = materias.find((item) => item.nombre.toLowerCase() === 'bases de datos');
     const profesor = profesores.find((item) => (
       item.materias.some((asignada) => asignada.nombre.toLowerCase() === materia.nombre.toLowerCase())
     ));
     assert.ok(grupo && salonInsuficiente && salonSuficiente && franja && materia && profesor);
-    assert.equal(grupo.cantidadAlumnos, 40);
+    assert.equal(grupo.cantidadAlumnos, 35);
     assert.equal(salonInsuficiente.capacidad, 30);
-    assert.equal(salonSuficiente.capacidad, 40);
+    assert.equal(salonSuficiente.capacidad, 35);
+
+    const diasCurso = materia.horasSemanales === 5
+      ? ['Lunes', 'Miércoles', 'Viernes']
+      : materia.horasSemanales === 6
+        ? ['Lunes', 'Miércoles', 'Viernes']
+        : ['Lunes', 'Miércoles'];
+    const inicioCurso = materia.horasSemanales === 5 ? '09:00' : '07:00';
+    const finCurso = materia.horasSemanales === 5 ? '11:00' : '09:00';
+    const horariosCurso = diasCurso.map((dia) => (
+      franjas.find((item) => item.dia === dia
+        && (dia === 'Viernes' && materia.horasSemanales === 5
+          ? item.horaInicio === '10:00' && item.horaFin === '11:00'
+          : item.horaInicio === inicioCurso && item.horaFin === finCurso))
+    )).filter(Boolean);
 
     const curso = {
       materiaId: materia.id,
       profesorId: profesor.id,
       grupoId: grupo.id,
       salonId: salonInsuficiente.id,
-      horarioIds: [franja.id]
+      horarioIds: horariosCurso.map((item) => item.id)
     };
     const rechazo = await fetch(`${baseUrl}/api/cursos`, {
       method: 'POST',
@@ -228,15 +244,15 @@ test('npm run migrate siembra los catálogos y las rutas API permiten validar GR
       body: JSON.stringify(curso)
     });
     assert.equal(rechazo.status, 400);
-    assert.match((await rechazo.json()).error, /capacidad para 30 alumnos y el grupo tiene 40/);
+    assert.match((await rechazo.json()).error, /capacidad para 30 alumnos y el grupo tiene 35/);
 
     const aceptacion = await fetch(`${baseUrl}/api/cursos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...curso, salonId: salonSuficiente.id })
     });
-    assert.equal(aceptacion.status, 201, salida);
-    assert.equal((await aceptacion.json()).salon.clave, 'A-103');
+    assert.equal(aceptacion.status, 201, JSON.stringify(await aceptacion.clone().json()));
+    assert.equal((await aceptacion.json()).salon.clave, 'LAB-02');
     assert.equal((await get('cursos')).length, 1);
 
     const formulario = await readFile(path.join(PROJECT_DIR, 'frontend', 'curso-form.html'), 'utf8');

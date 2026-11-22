@@ -18,14 +18,14 @@
     <h1 class="w3-text-indigo" id="titulo">Nuevo curso</h1>
     <form id="formulario" class="w3-card-4 w3-white w3-padding-16" style="max-width:900px;" novalidate>
       <div class="w3-container">
+        <label class="w3-text-indigo" for="periodoId"><b>Periodo académico *</b></label>
+        <select class="w3-select w3-border" id="periodoId" required>
+          <option value="">Cargando periodos...</option>
+        </select>
+
         <label class="w3-text-indigo" for="materiaId"><b>Materia *</b></label>
         <select class="w3-select w3-border" id="materiaId" required>
           <option value="">Cargando materias...</option>
-        </select>
-
-        <label class="w3-text-indigo w3-margin-top" for="profesorId"><b>Profesor *</b></label>
-        <select class="w3-select w3-border" id="profesorId" required>
-          <option value="">Cargando profesores...</option>
         </select>
 
         <label class="w3-text-indigo w3-margin-top" for="grupoId"><b>Grupo *</b></label>
@@ -33,16 +33,23 @@
           <option value="">Cargando grupos...</option>
         </select>
 
-        <label class="w3-text-indigo w3-margin-top" for="salonId"><b>Salón *</b></label>
-        <select class="w3-select w3-border" id="salonId" required>
-          <option value="">Cargando salones...</option>
-        </select>
-
         <fieldset class="w3-border w3-padding w3-margin-top">
-          <legend class="w3-text-indigo"><b>Horarios disponibles *</b></legend>
-          <p class="w3-text-grey">Selecciona una o varias franjas. Las selecciones son manuales.</p>
-          <div id="horarios" aria-live="polite">Cargando horarios...</div>
+          <legend class="w3-text-indigo"><b>Horario base *</b></legend>
+          <select class="w3-select w3-border" id="horarioBaseId" required>
+            <option value="">Selecciona primero materia y periodo</option>
+          </select>
+          <div id="horarioGenerado" class="w3-margin-top" aria-live="polite"></div>
         </fieldset>
+
+        <section class="w3-margin-top" aria-labelledby="profesoresTitulo">
+          <h2 class="w3-medium w3-text-indigo" id="profesoresTitulo">Profesores recomendados</h2>
+          <div id="profesores" aria-live="polite"></div>
+        </section>
+
+        <section class="w3-margin-top" aria-labelledby="salonesTitulo">
+          <h2 class="w3-medium w3-text-indigo" id="salonesTitulo">Salones compatibles disponibles</h2>
+          <div id="salones" aria-live="polite"></div>
+        </section>
 
         <section class="w3-panel w3-pale-blue w3-leftbar w3-border-blue w3-margin-top"
           aria-labelledby="resumenTitulo">

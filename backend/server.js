@@ -1,6 +1,10 @@
 ﻿import express from 'express';
 import cors from 'cors';
 import getDatabase from './database.js';
+import { generarPatronAcademico } from './services/horario-academico.js';
+import { recomendarProfesores } from './services/recomendacion-profesores.js';
+import { listarSalonesDisponibles } from './services/disponibilidad-salones.js';
+import { resumirPeriodo, validarCursoAcademico } from './services/validacion-periodo.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -112,11 +116,31 @@ function buildProfesorPayload(row) {
   const materias = db
     .prepare('SELECT nombre, nivel FROM materias_profesor WHERE profesorId = ? ORDER BY id')
     .all(row.id);
+  const calificaciones = db.prepare(`
+    SELECT pm.materiaId, m.clave, m.nombre, pm.calificacion
+    FROM profesor_materia_calificaciones pm
+    JOIN materias m ON m.id=pm.materiaId
+    WHERE pm.profesorId=? ORDER BY m.clave
+  `).all(row.id);
+  const disponibilidad = db.prepare(
+    'SELECT dia,horaInicio,horaFin,disponible FROM profesor_disponibilidad WHERE profesorId=? ORDER BY dia,horaInicio'
+  ).all(row.id);
+  const cargaActual = db.prepare(`
+    SELECT COALESCE(SUM(m.horasSemanales),0) AS carga
+    FROM cursos c JOIN materias m ON m.id=c.materiaId
+    WHERE c.profesorId=? AND c.periodoId IN (
+      SELECT id FROM periodos_academicos WHERE estado IN ('BORRADOR','VALIDADO','PUBLICADO')
+    )
+  `).get(row.id).carga;
 
   return {
     ...row,
     perfilPRODEP: Boolean(row.perfilPRODEP),
     materias,
+    calificaciones,
+    disponibilidad,
+    cargaActual: Number(cargaActual),
+    horasDisponibles: Number(row.maxHorasSemanales) - Number(cargaActual),
     ultimoGrado: getUltimoGrado(row.doctorado, row.maestria)
   };
 }
@@ -171,6 +195,7 @@ function normalizeProfesorInput(input = {}) {
     doctorado: normalizeText(input.doctorado),
     sni: normalizeText(input.sni) || 'Ninguno',
     perfilPRODEP: Boolean(input.perfilPRODEP),
+    maxHorasSemanales: normalizePositiveInteger(input?.maxHorasSemanales) ?? 20,
     academiaId: normalizeAcademiaClave(input.academiaId),
     materias: Object.prototype.hasOwnProperty.call(input, 'materias')
       ? Array.isArray(input.materias)
@@ -417,7 +442,7 @@ function registerCatalogRoutes(catalog) {
         .prepare(`SELECT * FROM ${catalog.table} ORDER BY ${catalog.orderBy}`)
         .all();
 
-      return res.json(records);
+      return res.json(catalog.transform ? records.map((record) => catalog.transform(record)) : records);
     } catch (error) {
       return sendCatalogDatabaseError(res, error, catalog, 'read');
     }
@@ -435,7 +460,7 @@ function registerCatalogRoutes(catalog) {
         return sendError(res, 404, `${catalog.label} no encontrado`);
       }
 
-      return res.json(record);
+      return res.json(catalog.transform ? catalog.transform(record) : record);
     } catch (error) {
       return sendCatalogDatabaseError(res, error, catalog, 'read');
     }
@@ -455,6 +480,7 @@ function registerCatalogRoutes(catalog) {
 
       const result = db.prepare(insertSql).run(...catalog.columns.map((column) => record[column]));
       const created = db.prepare(`SELECT * FROM ${catalog.table} WHERE id = ?`).get(result.lastInsertRowid);
+      if (catalog.afterSave) catalog.afterSave(record, created);
       return res.status(201).json(created);
     } catch (error) {
       return sendCatalogDatabaseError(res, error, catalog, 'save');
@@ -485,6 +511,7 @@ function registerCatalogRoutes(catalog) {
 
       db.prepare(updateSql).run(...catalog.columns.map((column) => record[column]), id);
       const updated = db.prepare(`SELECT * FROM ${catalog.table} WHERE id = ?`).get(id);
+      if (catalog.afterSave) catalog.afterSave(record, updated);
       return res.json(updated);
     } catch (error) {
       return sendCatalogDatabaseError(res, error, catalog, 'save');
@@ -515,12 +542,20 @@ function registerCatalogRoutes(catalog) {
   });
 }
 
+app.get('/api/salones/disponibles', (req, res) => {
+  const materiaId = Number(req.query.materiaId);
+  const grupoId = Number(req.query.grupoId);
+  const ids = String(req.query.horarioIds || '').split(',').map(Number).filter((id) => id > 0);
+  if (!materiaId || !grupoId || !ids.length) return sendError(res, 400, 'materiaId, grupoId y horarioIds son obligatorios');
+  return res.json(listarSalonesDisponibles(db, materiaId, grupoId, ids));
+});
+
 registerCatalogRoutes({
   path: 'materias',
   table: 'materias',
   label: 'Materia',
   orderBy: 'clave, id',
-  columns: ['clave', 'nombre', 'academiaClave'],
+  columns: ['clave', 'nombre', 'academiaClave', 'horasSemanales'],
   duplicateMessage: 'La materia ya existe',
   inUseMessage: 'La materia está siendo utilizada por un curso',
   invalidMessage: 'Los datos de la materia no son válidos',
@@ -529,6 +564,9 @@ registerCatalogRoutes({
   normalize: (input = {}) => ({
     clave: normalizeText(input?.clave).toUpperCase(),
     nombre: normalizeText(input?.nombre),
+    horasSemanales: normalizePositiveInteger(input?.horasSemanales),
+    tipoRequerido: normalizeText(input?.tipoRequerido).toUpperCase() || null,
+    caracteristicas: Array.isArray(input?.caracteristicas) ? input.caracteristicas.map(normalizeText).filter(Boolean) : [],
     academiaClave: input?.academiaClave == null
       ? null
       : typeof input.academiaClave === 'string'
@@ -543,6 +581,12 @@ registerCatalogRoutes({
 
     if (record.academiaClaveInvalida) {
       return 'La clave de academia debe ser texto';
+    }
+    if (![4, 5, 6].includes(record.horasSemanales)) {
+      return 'Las horas semanales deben ser 4, 5 o 6';
+    }
+    if (record.tipoRequerido && !['AULA', 'LABORATORIO', 'AUDITORIO'].includes(record.tipoRequerido)) {
+      return 'El tipo de salón requerido no es válido';
     }
 
     if (
@@ -562,7 +606,24 @@ registerCatalogRoutes({
     return db.prepare('SELECT id, nombre FROM materias WHERE id != ?').all(id)
       .some((materia) => materia.nombre.toLowerCase() === record.nombre.toLowerCase());
   },
-  isInUse: (id) => Boolean(db.prepare('SELECT 1 FROM cursos WHERE materiaId = ?').get(id))
+  isInUse: (id) => Boolean(db.prepare('SELECT 1 FROM cursos WHERE materiaId = ?').get(id)),
+  afterSave: (record, created) => {
+    db.prepare(`
+      INSERT INTO materia_requisitos_salon (materiaId,tipoRequerido,caracteristicas)
+      VALUES (?,?,?)
+      ON CONFLICT(materiaId) DO UPDATE SET
+        tipoRequerido=excluded.tipoRequerido,
+        caracteristicas=excluded.caracteristicas
+    `).run(created.id, record.tipoRequerido, JSON.stringify(record.caracteristicas));
+  },
+  transform: (record) => {
+    const requisito = db.prepare(
+      'SELECT tipoRequerido, caracteristicas FROM materia_requisitos_salon WHERE materiaId=?'
+    ).get(record.id);
+    let caracteristicas = [];
+    try { caracteristicas = JSON.parse(requisito?.caracteristicas || '[]'); } catch {}
+    return { ...record, tipoRequerido: requisito?.tipoRequerido || null, caracteristicas };
+  }
 });
 
 registerCatalogRoutes({
@@ -570,7 +631,7 @@ registerCatalogRoutes({
   table: 'salones',
   label: 'Salón',
   orderBy: 'clave, id',
-  columns: ['clave', 'nombre', 'capacidad'],
+  columns: ['clave', 'nombre', 'capacidad', 'tipo'],
   duplicateMessage: 'El salón ya existe',
   inUseMessage: 'El salón está siendo utilizado por un curso',
   invalidMessage: 'Los datos del salón no son válidos',
@@ -578,7 +639,9 @@ registerCatalogRoutes({
   normalize: (input = {}) => ({
     clave: normalizeText(input?.clave).toUpperCase(),
     nombre: normalizeText(input?.nombre),
-    capacidad: normalizePositiveInteger(input?.capacidad)
+    capacidad: normalizePositiveInteger(input?.capacidad),
+    tipo: normalizeText(input?.tipo).toUpperCase() || 'AULA',
+    caracteristicas: Array.isArray(input?.caracteristicas) ? input.caracteristicas.map(normalizeText).filter(Boolean) : []
   }),
   validate: (record) => {
     if (!record.clave || !record.nombre) {
@@ -587,6 +650,9 @@ registerCatalogRoutes({
 
     if (record.capacidad === null || record.capacidad <= 0) {
       return 'La capacidad debe ser un entero mayor a 0';
+    }
+    if (!['AULA', 'LABORATORIO', 'AUDITORIO'].includes(record.tipo)) {
+      return 'El tipo de salón no es válido';
     }
 
     return null;
@@ -599,7 +665,18 @@ registerCatalogRoutes({
     return db.prepare('SELECT id, nombre FROM salones WHERE id != ?').all(id)
       .some((salon) => salon.nombre.toLowerCase() === record.nombre.toLowerCase());
   },
-  isInUse: (id) => Boolean(db.prepare('SELECT 1 FROM cursos WHERE salonId = ?').get(id))
+  isInUse: (id) => Boolean(db.prepare('SELECT 1 FROM cursos WHERE salonId = ?').get(id)),
+  afterSave: (record, created) => {
+    db.prepare('DELETE FROM caracteristicas_salones WHERE salonId=?').run(created.id);
+    const insert = db.prepare('INSERT INTO caracteristicas_salones (salonId,caracteristica) VALUES (?,?)');
+    for (const caracteristica of record.caracteristicas) insert.run(created.id, caracteristica);
+  },
+  transform: (record) => ({
+    ...record,
+    caracteristicas: db.prepare(
+      'SELECT caracteristica FROM caracteristicas_salones WHERE salonId=? ORDER BY caracteristica'
+    ).pluck().all(record.id)
+  })
 });
 
 registerCatalogRoutes({
@@ -729,8 +806,9 @@ app.post('/api/profesores', (req, res) => {
           doctorado,
           sni,
           perfilPRODEP,
-          academiaId
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          academiaId,
+          maxHorasSemanales
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       );
 
       const result = insertProfesor.run(
@@ -743,7 +821,8 @@ app.post('/api/profesores', (req, res) => {
         nuevo.doctorado,
         nuevo.sni,
         nuevo.perfilPRODEP ? 1 : 0,
-        nuevo.academiaId
+        nuevo.academiaId,
+        nuevo.maxHorasSemanales
       );
 
       const profesorId = Number(result.lastInsertRowid);
@@ -826,7 +905,8 @@ app.put('/api/profesores/:id', (req, res) => {
              doctorado = ?,
              sni = ?,
              perfilPRODEP = ?,
-             academiaId = ?
+             academiaId = ?,
+             maxHorasSemanales = ?
          WHERE id = ?`
       ).run(
         actualizado.numeroEmpleado,
@@ -839,6 +919,7 @@ app.put('/api/profesores/:id', (req, res) => {
         actualizado.sni,
         actualizado.perfilPRODEP ? 1 : 0,
         actualizado.academiaId,
+        actualizado.maxHorasSemanales,
         id
       );
 
@@ -1534,6 +1615,9 @@ app.delete('/api/horarios/:id', (req, res) => {
 });
 
 function buildCursoPayload(curso) {
+  const periodo = curso.periodoId == null
+    ? null
+    : db.prepare('SELECT * FROM periodos_academicos WHERE id = ?').get(curso.periodoId);
   const materia = db
     .prepare('SELECT * FROM materias WHERE id = ?')
     .get(curso.materiaId);
@@ -1562,6 +1646,9 @@ function buildCursoPayload(curso) {
 
   return {
     id: Number(curso.id),
+    periodoId: curso.periodoId == null ? null : Number(curso.periodoId),
+    periodo: periodo ? { ...periodo } : null,
+    estado: curso.estado || 'BORRADOR',
     materiaId: Number(curso.materiaId),
     profesorId: Number(curso.profesorId),
     grupoId: Number(curso.grupoId),
@@ -1580,16 +1667,16 @@ function buildCursoPayload(curso) {
   };
 }
 
-function obtenerCursoConflictData(cursoId, profesorId, grupoId, salonId, horarioIds) {
+function obtenerCursoConflictData(cursoId, profesorId, grupoId, salonId, horarioIds, periodoId) {
   const conflictoProfesor = db
     .prepare(`
       SELECT c.id, fh.dia, fh.horaInicio, fh.horaFin
       FROM cursos c
       INNER JOIN curso_horarios ch ON ch.cursoId = c.id
       INNER JOIN franjas_horarias fh ON fh.id = ch.horarioId
-      WHERE c.profesorId = ? AND c.id != ?
+      WHERE c.profesorId = ? AND c.id != ? AND c.periodoId = ?
     `)
-    .all(profesorId, cursoId ?? -1);
+    .all(profesorId, cursoId ?? -1, periodoId);
 
   const conflictoSalon = db
     .prepare(`
@@ -1597,9 +1684,9 @@ function obtenerCursoConflictData(cursoId, profesorId, grupoId, salonId, horario
       FROM cursos c
       INNER JOIN curso_horarios ch ON ch.cursoId = c.id
       INNER JOIN franjas_horarias fh ON fh.id = ch.horarioId
-      WHERE c.salonId = ? AND c.id != ?
+      WHERE c.salonId = ? AND c.id != ? AND c.periodoId = ?
     `)
-    .all(salonId, cursoId ?? -1);
+    .all(salonId, cursoId ?? -1, periodoId);
 
   const conflictoGrupo = db
     .prepare(`
@@ -1607,9 +1694,9 @@ function obtenerCursoConflictData(cursoId, profesorId, grupoId, salonId, horario
       FROM cursos c
       INNER JOIN curso_horarios ch ON ch.cursoId = c.id
       INNER JOIN franjas_horarias fh ON fh.id = ch.horarioId
-      WHERE c.grupoId = ? AND c.id != ?
+      WHERE c.grupoId = ? AND c.id != ? AND c.periodoId = ?
     `)
-    .all(grupoId, cursoId ?? -1);
+    .all(grupoId, cursoId ?? -1, periodoId);
 
   const franjasCurso = obtenerHorariosSeleccionados(horarioIds);
 
@@ -1637,6 +1724,13 @@ function validarCursoPayload(payload, cursoIdActual = null) {
   const profesorId = normalizePositiveInteger(payload?.profesorId);
   const grupoId = normalizePositiveInteger(payload?.grupoId);
   const salonId = normalizePositiveInteger(payload?.salonId);
+  let periodoId = normalizePositiveInteger(payload?.periodoId);
+  if (!Number.isInteger(periodoId) || periodoId <= 0) {
+    periodoId = db.prepare("SELECT id FROM periodos_academicos WHERE estado='BORRADOR' ORDER BY id LIMIT 1").get()?.id;
+  }
+  if (!periodoId || !db.prepare('SELECT 1 FROM periodos_academicos WHERE id = ?').get(periodoId)) {
+    return 'El periodo académico seleccionado no existe';
+  }
 
   if (!Number.isInteger(materiaId) || materiaId <= 0) {
     return 'El campo materiaId es obligatorio';
@@ -1701,16 +1795,80 @@ function validarCursoPayload(payload, cursoIdActual = null) {
     return 'Las franjas seleccionadas para el curso no pueden solaparse entre sí';
   }
 
+  const grupoPrecheck = db.prepare('SELECT cantidadAlumnos FROM grupos WHERE id = ?').get(grupoId);
+  const salonPrecheck = db.prepare('SELECT capacidad FROM salones WHERE id = ?').get(salonId);
+  if (salonPrecheck.capacidad < grupoPrecheck.cantidadAlumnos) {
+    return `El salón seleccionado tiene capacidad para ${salonPrecheck.capacidad} alumnos y el grupo tiene ${grupoPrecheck.cantidadAlumnos}.`;
+  }
+
+  const materia = db.prepare('SELECT * FROM materias WHERE id = ?').get(materiaId);
+  if (![4, 5, 6].includes(Number(materia.horasSemanales))) {
+    return 'La materia debe tener 4, 5 o 6 horas semanales';
+  }
+  const horasTotales = franjasCurso.reduce((total, franja) => {
+    const inicio = horaEnMinutos(franja.horaInicio);
+    const fin = horaEnMinutos(franja.horaFin);
+    return total + ((fin - inicio) / 60);
+  }, 0);
+  if (horasTotales !== Number(materia.horasSemanales)) {
+    return `Las franjas suman ${horasTotales} horas; la materia requiere ${materia.horasSemanales}`;
+  }
+  const horarioOrdenado = [...horarioIds].sort((a, b) => a - b);
+  const patronValido = horarioIds.some((horarioId) => {
+    const patron = generarPatronAcademico(db, materiaId, horarioId);
+    return patron.ok
+      && [...patron.horarioIds].sort((a, b) => a - b).every((id, index) => id === horarioOrdenado[index])
+      && patron.horarioIds.length === horarioOrdenado.length;
+  });
+  if (!patronValido) return 'Las franjas no corresponden a un patrón académico válido para la materia';
+
+  const profesor = db.prepare('SELECT * FROM profesores WHERE id = ?').get(profesorId);
+  const cargaActual = db.prepare(`
+    SELECT COALESCE(SUM(m.horasSemanales), 0) AS carga
+    FROM cursos c
+    JOIN materias m ON m.id = c.materiaId
+    WHERE c.profesorId = ? AND c.periodoId = ? AND c.id != ?
+  `).get(profesorId, periodoId, cursoIdActual ?? -1).carga;
+  if (Number(cargaActual) + Number(materia.horasSemanales) > Number(profesor.maxHorasSemanales)) {
+    return 'La asignación supera la carga máxima semanal del profesor';
+  }
+
+  for (const franja of franjasCurso) {
+    const disponibilidad = db.prepare(`
+      SELECT disponible FROM profesor_disponibilidad
+      WHERE profesorId = ? AND dia = ? AND horaInicio = ? AND horaFin = ?
+    `).get(profesorId, franja.dia, franja.horaInicio, franja.horaFin);
+    if (disponibilidad && Number(disponibilidad.disponible) === 0) {
+      return `El profesor no está disponible el ${franja.dia} ${franja.horaInicio}–${franja.horaFin}`;
+    }
+  }
+
   const grupo = db
     .prepare('SELECT cantidadAlumnos FROM grupos WHERE id = ?')
     .get(grupoId);
 
   const salon = db
-    .prepare('SELECT capacidad FROM salones WHERE id = ?')
+    .prepare('SELECT * FROM salones WHERE id = ?')
     .get(salonId);
 
   if (salon.capacidad < grupo.cantidadAlumnos) {
     return `El salón seleccionado tiene capacidad para ${salon.capacidad} alumnos y el grupo tiene ${grupo.cantidadAlumnos}.`;
+  }
+  if (db.prepare('SELECT 1 FROM materia_requisitos_salon WHERE materiaId = ?').get(materiaId)) {
+    const requisito = db.prepare(
+      'SELECT tipoRequerido, caracteristicas FROM materia_requisitos_salon WHERE materiaId = ?'
+    ).get(materiaId);
+    if (requisito.tipoRequerido && salon.tipo !== requisito.tipoRequerido) {
+      return 'El tipo de salón no es compatible con la materia';
+    }
+    let requeridas = [];
+    try { requeridas = JSON.parse(requisito.caracteristicas || '[]'); } catch {}
+    const disponibles = db.prepare(
+      'SELECT caracteristica FROM caracteristicas_salones WHERE salonId = ?'
+    ).pluck().all(salonId);
+    if (requeridas.some((caracteristica) => !disponibles.includes(caracteristica))) {
+      return 'El salón no tiene todas las características requeridas por la materia';
+    }
   }
 
   const { conflictoProfesor, conflictoSalon, conflictoGrupo } = obtenerCursoConflictData(
@@ -1718,7 +1876,8 @@ function validarCursoPayload(payload, cursoIdActual = null) {
     profesorId,
     grupoId,
     salonId,
-    horarioIds
+    horarioIds,
+    periodoId
   );
 
   for (const franja of conflictoProfesor) {
@@ -1788,11 +1947,14 @@ app.post('/api/cursos', (req, res) => {
     }
 
     const { materiaId, profesorId, grupoId, salonId, horarioIds } = req.body;
+    const periodoId = normalizePositiveInteger(req.body?.periodoId)
+      || db.prepare("SELECT id FROM periodos_academicos WHERE estado='BORRADOR' ORDER BY id LIMIT 1").get()?.id;
+    const estado = req.body?.estado === 'VALIDADO' ? 'VALIDADO' : 'BORRADOR';
 
     const tx = db.transaction(() => {
       const result = db.prepare(
-        'INSERT INTO cursos (materiaId, profesorId, grupoId, salonId) VALUES (?, ?, ?, ?)'
-      ).run(materiaId, profesorId, grupoId, salonId);
+        'INSERT INTO cursos (materiaId, profesorId, grupoId, salonId, periodoId, estado) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(materiaId, profesorId, grupoId, salonId, periodoId, estado);
 
       const cursoId = Number(result.lastInsertRowid);
 
@@ -1845,11 +2007,17 @@ app.put('/api/cursos/:id', (req, res) => {
     }
 
     const { materiaId, profesorId, grupoId, salonId, horarioIds } = req.body;
+    const periodoId = normalizePositiveInteger(req.body?.periodoId)
+      || existente.periodoId
+      || db.prepare("SELECT id FROM periodos_academicos WHERE estado='BORRADOR' ORDER BY id LIMIT 1").get()?.id;
+    const estado = req.body?.estado === 'VALIDADO' ? 'VALIDADO'
+      : req.body?.estado === 'PUBLICADO' ? 'PUBLICADO'
+      : 'BORRADOR';
 
     const tx = db.transaction(() => {
       db.prepare(
-        'UPDATE cursos SET materiaId = ?, profesorId = ?, grupoId = ?, salonId = ? WHERE id = ?'
-      ).run(materiaId, profesorId, grupoId, salonId, id);
+        'UPDATE cursos SET materiaId = ?, profesorId = ?, grupoId = ?, salonId = ?, periodoId = ?, estado = ? WHERE id = ?'
+      ).run(materiaId, profesorId, grupoId, salonId, periodoId, estado, id);
 
       db.prepare('DELETE FROM curso_horarios WHERE cursoId = ?').run(id);
 
@@ -1881,6 +2049,206 @@ app.put('/api/cursos/:id', (req, res) => {
   }
 });
 
+app.get('/api/periodos', (req, res) => {
+  try {
+    return res.json(db.prepare('SELECT * FROM periodos_academicos ORDER BY fechaInicio, clave').all());
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al obtener periodos');
+  }
+});
+
+app.post('/api/periodos', (req, res) => {
+  try {
+    const clave = normalizeText(req.body?.clave).toUpperCase();
+    const nombre = normalizeText(req.body?.nombre);
+    const fechaInicio = normalizeText(req.body?.fechaInicio);
+    const fechaFin = normalizeText(req.body?.fechaFin);
+    const estado = normalizeText(req.body?.estado).toUpperCase() || 'BORRADOR';
+    if (!clave || !nombre) return sendError(res, 400, 'Clave y nombre son obligatorios');
+    if (!['BORRADOR','VALIDADO','PUBLICADO','CERRADO'].includes(estado)) return sendError(res, 400, 'Estado invalido');
+    if (estado !== 'BORRADOR') return sendError(res, 400, 'Un periodo nuevo debe iniciar en BORRADOR');
+    if (fechaInicio && fechaFin && fechaFin < fechaInicio) return sendError(res, 400, 'La fecha fin no puede ser anterior a la fecha inicio');
+    if (db.prepare('SELECT 1 FROM periodos_academicos WHERE clave=?').get(clave)) return sendError(res, 409, 'La clave del periodo ya existe');
+    const result = db.prepare(
+      'INSERT INTO periodos_academicos (clave,nombre,fechaInicio,fechaFin,estado) VALUES (?,?,?,?,?)'
+    ).run(clave,nombre,fechaInicio || null,fechaFin || null,estado);
+    return res.status(201).json(db.prepare('SELECT * FROM periodos_academicos WHERE id=?').get(result.lastInsertRowid));
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al crear el periodo');
+  }
+});
+
+app.put('/api/periodos/:id', (req, res) => {
+  const id = parseCatalogId(req.params.id);
+  const periodo = db.prepare('SELECT * FROM periodos_academicos WHERE id=?').get(id);
+  if (!periodo) return sendError(res, 404, 'Periodo no encontrado');
+  const estado = normalizeText(req.body?.estado).toUpperCase() || periodo.estado;
+  if (!['BORRADOR','VALIDADO','PUBLICADO','CERRADO'].includes(estado)) return sendError(res, 400, 'Estado invalido');
+  if (estado === 'VALIDADO' && periodo.estado !== 'BORRADOR' && periodo.estado !== 'VALIDADO') return sendError(res, 409, 'Transicion invalida');
+  if (estado === 'VALIDADO') {
+    const resumen = resumirPeriodo(db, id);
+    if (resumen?.conflictos.length) return sendError(res, 409, `No se puede validar: existen ${resumen.conflictos.length} conflictos bloqueantes`);
+  }
+  if (estado === 'PUBLICADO' && periodo.estado !== 'VALIDADO') return sendError(res, 409, 'El periodo debe estar VALIDADO antes de publicarse');
+  if (estado === 'CERRADO' && periodo.estado !== 'PUBLICADO') return sendError(res, 409, 'Solo puede cerrarse un periodo PUBLICADO');
+  if (estado === 'PUBLICADO') {
+    const resumen = resumirPeriodo(db, id);
+    if (resumen?.conflictos.length) return sendError(res, 409, `No se puede publicar: existen ${resumen.conflictos.length} conflictos bloqueantes`);
+  }
+  const clave = normalizeText(req.body?.clave).toUpperCase() || periodo.clave;
+  const nombre = normalizeText(req.body?.nombre) || periodo.nombre;
+  const fechaInicio = normalizeText(req.body?.fechaInicio) || periodo.fechaInicio;
+  const fechaFin = normalizeText(req.body?.fechaFin) || periodo.fechaFin;
+  if (fechaInicio && fechaFin && fechaFin < fechaInicio) return sendError(res, 400, 'La fecha fin no puede ser anterior a la fecha inicio');
+  db.prepare('UPDATE periodos_academicos SET clave=?,nombre=?,fechaInicio=?,fechaFin=?,estado=? WHERE id=?')
+    .run(clave,nombre,fechaInicio,fechaFin,estado,id);
+  return res.json(db.prepare('SELECT * FROM periodos_academicos WHERE id=?').get(id));
+});
+
+app.get('/api/periodos/:id/conflictos', (req, res) => {
+  const resumen = resumirPeriodo(db, parseCatalogId(req.params.id));
+  if (!resumen) return sendError(res, 404, 'Periodo no encontrado');
+  return res.json(resumen);
+});
+
+app.get('/api/materias/:id/patrones-horarios', (req, res) => {
+  const materiaId = parseCatalogId(req.params.id);
+  const horarioBaseId = Number(req.query.horarioBaseId);
+  if (!materiaId || !horarioBaseId) return sendError(res, 400, 'materiaId y horarioBaseId son obligatorios');
+  const resultado = generarPatronAcademico(db, materiaId, horarioBaseId);
+  if (!resultado.ok) return sendError(res, 400, resultado.error);
+  return res.json(resultado);
+});
+
+app.get('/api/materias/:id/profesores-recomendados', (req, res) => {
+  const materiaId = parseCatalogId(req.params.id);
+  const periodoId = Number(req.query.periodoId) || null;
+  const ids = String(req.query.horarioIds || '').split(',').map(Number).filter((id) => id > 0);
+  if (!ids.length) return sendError(res, 400, 'horarioIds es obligatorio');
+  return res.json(recomendarProfesores(db, materiaId, periodoId, ids));
+});
+
+app.get('/api/profesores/:id/calificaciones', (req, res) => {
+  const profesorId = parseCatalogId(req.params.id);
+  return res.json(db.prepare(`
+    SELECT pm.materiaId,m.clave,m.nombre,pm.calificacion
+    FROM profesor_materia_calificaciones pm
+    JOIN materias m ON m.id=pm.materiaId
+    WHERE pm.profesorId=? ORDER BY m.clave
+  `).all(profesorId));
+});
+
+app.put('/api/profesores/:id/calificaciones', (req, res) => {
+  const profesorId = parseCatalogId(req.params.id);
+  if (!profesorId || !db.prepare('SELECT 1 FROM profesores WHERE id=?').get(profesorId)) {
+    return sendError(res, 404, 'Profesor no encontrado');
+  }
+  if (!Array.isArray(req.body?.calificaciones)) return sendError(res, 400, 'calificaciones debe ser una lista');
+  const tx = db.transaction(() => {
+    for (const item of req.body.calificaciones) {
+      const materiaId = Number(item.materiaId);
+      const calificacion = Number(item.calificacion);
+      if (!materiaId || !db.prepare('SELECT 1 FROM materias WHERE id=?').get(materiaId)
+        || !Number.isFinite(calificacion) || calificacion < 0 || calificacion > 10) {
+        throw new Error('CALIFICACION_INVALIDA');
+      }
+      db.prepare(`
+        INSERT INTO profesor_materia_calificaciones (profesorId,materiaId,calificacion)
+        VALUES (?,?,?)
+        ON CONFLICT(profesorId,materiaId) DO UPDATE SET calificacion=excluded.calificacion
+      `).run(profesorId,materiaId,calificacion);
+    }
+  });
+  try { tx(); } catch (error) {
+    if (error.message === 'CALIFICACION_INVALIDA') return sendError(res, 400, 'Materia o calificacion invalida');
+    console.error(error);
+    return sendError(res, 500, 'Error al actualizar calificaciones');
+  }
+  return res.json(db.prepare('SELECT materiaId,calificacion FROM profesor_materia_calificaciones WHERE profesorId=?').all(profesorId));
+});
+
+app.get('/api/profesores/:id/disponibilidad', (req, res) => {
+  const profesorId = parseCatalogId(req.params.id);
+  return res.json(db.prepare(
+    'SELECT dia,horaInicio,horaFin,disponible FROM profesor_disponibilidad WHERE profesorId=? ORDER BY dia,horaInicio'
+  ).all(profesorId));
+});
+
+app.put('/api/profesores/:id/disponibilidad', (req, res) => {
+  const profesorId = parseCatalogId(req.params.id);
+  if (!Array.isArray(req.body?.disponibilidad)) return sendError(res, 400, 'disponibilidad debe ser una lista');
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM profesor_disponibilidad WHERE profesorId=?').run(profesorId);
+    for (const item of req.body.disponibilidad) {
+      db.prepare(
+        'INSERT INTO profesor_disponibilidad (profesorId,dia,horaInicio,horaFin,disponible) VALUES (?,?,?,?,?)'
+      ).run(profesorId,item.dia,item.horaInicio,item.horaFin,item.disponible ? 1 : 0);
+    }
+  });
+  tx();
+  return res.json(db.prepare(
+    'SELECT dia,horaInicio,horaFin,disponible FROM profesor_disponibilidad WHERE profesorId=? ORDER BY dia,horaInicio'
+  ).all(profesorId));
+});
+
+app.delete('/api/profesores/:id/calificaciones/:materiaId', (req, res) => {
+  const profesorId = parseCatalogId(req.params.id);
+  const materiaId = parseCatalogId(req.params.materiaId);
+  if (!profesorId || !materiaId) return sendError(res, 400, 'IDs inválidos');
+  const result = db.prepare(
+    'DELETE FROM profesor_materia_calificaciones WHERE profesorId=? AND materiaId=?'
+  ).run(profesorId, materiaId);
+  if (result.changes === 0) return sendError(res, 404, 'La calificación profesor-materia no existe');
+  return res.json({ mensaje: 'Relación profesor-materia eliminada' });
+});
+
+app.put('/api/materias/:id/requisitos', (req, res) => {
+  const materiaId = parseCatalogId(req.params.id);
+  const tipoRequerido = normalizeText(req.body?.tipoRequerido).toUpperCase() || null;
+  const permitidas = new Set(['COMPUTADORAS','INTERNET','PROYECTOR','RED_LOCAL']);
+  const caracteristicas = Array.isArray(req.body?.caracteristicas)
+    ? [...new Set(req.body.caracteristicas.map(normalizeText))]
+    : [];
+  if (!materiaId || !db.prepare('SELECT 1 FROM materias WHERE id=?').get(materiaId)) {
+    return sendError(res, 404, 'Materia no encontrada');
+  }
+  if (tipoRequerido && !['AULA','LABORATORIO','AUDITORIO'].includes(tipoRequerido)) {
+    return sendError(res, 400, 'Tipo requerido inválido');
+  }
+  if (caracteristicas.some((item) => !permitidas.has(item))) return sendError(res, 400, 'Característica inválida');
+  db.prepare(`
+    INSERT INTO materia_requisitos_salon (materiaId,tipoRequerido,caracteristicas)
+    VALUES (?,?,?)
+    ON CONFLICT(materiaId) DO UPDATE SET
+      tipoRequerido=excluded.tipoRequerido,
+      caracteristicas=excluded.caracteristicas
+  `).run(materiaId,tipoRequerido,JSON.stringify(caracteristicas));
+  return res.json(db.prepare('SELECT * FROM materia_requisitos_salon WHERE materiaId=?').get(materiaId));
+});
+
+app.put('/api/salones/:id/caracteristicas', (req, res) => {
+  const salonId = parseCatalogId(req.params.id);
+  const permitidas = new Set(['COMPUTADORAS','INTERNET','PROYECTOR','RED_LOCAL']);
+  const caracteristicas = Array.isArray(req.body?.caracteristicas)
+    ? [...new Set(req.body.caracteristicas.map(normalizeText))]
+    : null;
+  if (!salonId || !db.prepare('SELECT 1 FROM salones WHERE id=?').get(salonId)) {
+    return sendError(res, 404, 'Salón no encontrado');
+  }
+  if (!caracteristicas || caracteristicas.some((item) => !permitidas.has(item))) {
+    return sendError(res, 400, 'Características inválidas');
+  }
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM caracteristicas_salones WHERE salonId=?').run(salonId);
+    const insert = db.prepare('INSERT INTO caracteristicas_salones (salonId,caracteristica) VALUES (?,?)');
+    for (const caracteristica of caracteristicas) insert.run(salonId,caracteristica);
+  });
+  tx();
+  return res.json(caracteristicas);
+});
+
 app.delete('/api/cursos/:id', (req, res) => {
   try {
     const id = parseCatalogId(req.params.id);
@@ -1901,6 +2269,8 @@ app.delete('/api/cursos/:id', (req, res) => {
       mensaje: 'Curso eliminado correctamente',
       curso: payload
     });
+
+
   } catch (error) {
     console.error(error);
 

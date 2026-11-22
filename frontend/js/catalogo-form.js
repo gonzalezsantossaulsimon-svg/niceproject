@@ -27,8 +27,11 @@ const formularios = {
     campos: [
       { id: 'clave', clave: 'clave' },
       { id: 'nombre', clave: 'nombre' },
-      { id: 'academiaClave', clave: 'academiaClave' }
+      { id: 'academiaClave', clave: 'academiaClave' },
+      { id: 'horasSemanales', clave: 'horasSemanales', numero: true },
+      { id: 'tipoRequerido', clave: 'tipoRequerido' }
     ],
+    caracteristicasId: 'caracteristicasMateria',
     preparar: async () => {
       const academias = await getAcademias();
       const select = document.getElementById('academiaClave');
@@ -49,11 +52,14 @@ const formularios = {
     normalizar: (datos) => ({
       ...datos,
       clave: datos.clave.toUpperCase(),
-      academiaClave: datos.academiaClave || null
+      academiaClave: datos.academiaClave || null,
+      tipoRequerido: datos.tipoRequerido || null
     }),
     validar: (datos) => (!datos.clave || !datos.nombre
       ? 'La clave y el nombre son obligatorios.'
-      : '')
+      : ![4, 5, 6].includes(datos.horasSemanales)
+        ? 'Las horas semanales deben ser 4, 5 o 6.'
+        : '')
   },
   salones: {
     singular: 'salón',
@@ -66,8 +72,10 @@ const formularios = {
     campos: [
       { id: 'clave', clave: 'clave' },
       { id: 'nombre', clave: 'nombre' },
-      { id: 'capacidad', clave: 'capacidad', numero: true }
+      { id: 'capacidad', clave: 'capacidad', numero: true },
+      { id: 'tipo', clave: 'tipo' }
     ],
+    caracteristicasId: 'caracteristicasSalon',
     normalizar: (datos) => ({ ...datos, clave: datos.clave.toUpperCase() }),
     validar: (datos) => {
       if (!datos.clave || !datos.nombre) {
@@ -154,11 +162,17 @@ export async function inicializarCatalogoFormulario(nombreCatalogo) {
   const id = new URLSearchParams(window.location.search).get('id');
 
   function leerDatos() {
-    return Object.fromEntries(catalogo.campos.map((campo) => {
+    const datos = Object.fromEntries(catalogo.campos.map((campo) => {
       const control = document.getElementById(campo.id);
       const valor = campo.numero ? Number(control.value) : control.value.trim();
       return [campo.clave, valor];
     }));
+    if (catalogo.caracteristicasId) {
+      datos.caracteristicas = Array.from(
+        document.querySelectorAll(`#${catalogo.caracteristicasId} input[type="checkbox"]:checked`)
+      ).map((checkbox) => checkbox.value);
+    }
+    return datos;
   }
 
   async function prepararFormulario() {
@@ -176,6 +190,11 @@ export async function inicializarCatalogoFormulario(nombreCatalogo) {
       const control = document.getElementById(campo.id);
       control.value = registro[campo.clave] ?? '';
     });
+    if (catalogo.caracteristicasId) {
+      const seleccionadas = new Set(registro.caracteristicas || []);
+      document.querySelectorAll(`#${catalogo.caracteristicasId} input[type="checkbox"]`)
+        .forEach((checkbox) => { checkbox.checked = seleccionadas.has(checkbox.value); });
+    }
   }
 
   try {

@@ -5,37 +5,26 @@ import {
   getFranjasHorarias,
   getGrupos,
   getMaterias,
-  getProfesores,
-  getSalones
+  getPeriodos,
+  getPatronesMateria,
+  getProfesoresRecomendados,
+  getSalonesDisponibles
 } from './api.js';
 import { requiereSesion } from './auth.js';
 
-const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const sesion = requiereSesion();
-
 if (sesion) inicializarFormularioCurso();
 
-function mostrarMensaje(elemento, texto) {
-  elemento.textContent = texto;
-  elemento.style.display = texto ? 'block' : 'none';
+function texto(elemento, valor) {
+  elemento.textContent = valor;
+  elemento.style.display = valor ? 'block' : 'none';
 }
 
-function agregarOpcion(select, valor, texto) {
-  const opcion = document.createElement('option');
-  opcion.value = String(valor);
-  opcion.textContent = texto;
-  select.appendChild(opcion);
-}
-
-function minutos(hora) {
-  const [horas, minutosHora] = hora.split(':').map(Number);
-  return horas * 60 + minutosHora;
-}
-
-function seSolapan(a, b) {
-  return a.dia === b.dia
-    && minutos(a.horaInicio) < minutos(b.horaFin)
-    && minutos(a.horaFin) > minutos(b.horaInicio);
+function opcion(valor, etiqueta) {
+  const control = document.createElement('option');
+  control.value = String(valor);
+  control.textContent = etiqueta;
+  return control;
 }
 
 async function inicializarFormularioCurso() {
@@ -43,207 +32,304 @@ async function inicializarFormularioCurso() {
   const titulo = document.getElementById('titulo');
   const mensaje = document.getElementById('mensaje');
   const guardar = document.getElementById('guardar');
-  const selectores = {
-    materia: document.getElementById('materiaId'),
-    profesor: document.getElementById('profesorId'),
-    grupo: document.getElementById('grupoId'),
-    salon: document.getElementById('salonId')
-  };
-  const contenedorHorarios = document.getElementById('horarios');
+  const periodoSelect = document.getElementById('periodoId');
+  const materiaSelect = document.getElementById('materiaId');
+  const grupoSelect = document.getElementById('grupoId');
+  const baseSelect = document.getElementById('horarioBaseId');
+  const horarioGenerado = document.getElementById('horarioGenerado');
+  const profesoresDiv = document.getElementById('profesores');
+  const salonesDiv = document.getElementById('salones');
   const resumen = document.getElementById('resumen');
   const id = new URLSearchParams(window.location.search).get('id');
-  let catalogos = { materias: [], profesores: [], grupos: [], salones: [], horarios: [] };
-  let datosListos = false;
 
-  function seleccionActual() {
-    return {
-      materia: catalogos.materias.find((item) => String(item.id) === selectores.materia.value),
-      profesor: catalogos.profesores.find((item) => String(item.id) === selectores.profesor.value),
-      grupo: catalogos.grupos.find((item) => String(item.id) === selectores.grupo.value),
-      salon: catalogos.salones.find((item) => String(item.id) === selectores.salon.value),
-      horarios: Array.from(contenedorHorarios.querySelectorAll('input[type="checkbox"]:checked'))
-        .map((checkbox) => catalogos.horarios.find((horario) => String(horario.id) === checkbox.value))
-        .filter(Boolean)
-    };
+  let catalogos = { periodos: [], materias: [], grupos: [], horarios: [] };
+  let patron = null;
+  let profesorSeleccionado = null;
+  let salonSeleccionado = null;
+
+  function cargarSelect(select, items, etiqueta, textoItem) {
+    select.replaceChildren(opcion('', etiqueta));
+    for (const item of items) select.append(opcion(item.id, textoItem(item)));
   }
 
-  function construirResumenLinea(etiqueta, valor) {
-    const parrafo = document.createElement('p');
-    const label = document.createElement('b');
-    label.textContent = `${etiqueta}: `;
-    const contenido = document.createElement('span');
-    contenido.textContent = valor;
-    parrafo.append(label, contenido);
-    resumen.appendChild(parrafo);
+  function materiaActual() {
+    return catalogos.materias.find((item) => String(item.id) === materiaSelect.value);
+  }
+  function grupoActual() {
+    return catalogos.grupos.find((item) => String(item.id) === grupoSelect.value);
+  }
+  function periodoActual() {
+    return catalogos.periodos.find((item) => String(item.id) === periodoSelect.value);
   }
 
-  function validarSeleccion(seleccion) {
-    if (!seleccion.materia || !seleccion.profesor || !seleccion.grupo || !seleccion.salon) {
-      return 'Selecciona una materia, un profesor, un grupo y un salón.';
-    }
-    if (seleccion.horarios.length === 0) return 'Selecciona al menos un horario.';
+  function mostrarMateria() {
+    const materia = materiaActual();
+    const existente = document.getElementById('detalleMateria');
+    if (existente) existente.remove();
+    if (!materia) return;
+    const panel = document.createElement('div');
+    panel.id = 'detalleMateria';
+    panel.className = 'w3-panel w3-pale-blue w3-border w3-margin-top';
+    const titulo = document.createElement('b');
+    titulo.textContent = `${materia.clave} — ${materia.nombre}`;
+    const horas = document.createElement('p');
+    horas.textContent = `${materia.horasSemanales} horas semanales`;
+    const requiere = document.createElement('p');
+    requiere.textContent = materia.tipoRequerido
+      ? `Requiere: ${materia.tipoRequerido}${materia.caracteristicas?.length ? ` — ${materia.caracteristicas.join(', ')}` : ''}`
+      : 'Sin requisito específico de espacio';
+    panel.append(titulo, horas, requiere);
+    materiaSelect.after(panel);
+  }
 
-    const horariosOrdenados = [...seleccion.horarios].sort((a, b) => (
-      DIAS.indexOf(a.dia) - DIAS.indexOf(b.dia) || a.horaInicio.localeCompare(b.horaInicio)
-    ));
-    for (let i = 0; i < horariosOrdenados.length; i += 1) {
-      for (let j = i + 1; j < horariosOrdenados.length; j += 1) {
-        if (seSolapan(horariosOrdenados[i], horariosOrdenados[j])) {
-          return 'Las franjas del mismo curso se solapan. Ajusta la selección antes de guardar.';
+  function cargarBases() {
+    baseSelect.replaceChildren(opcion('', 'Selecciona un horario base'));
+    const materia = materiaActual();
+    if (!materia) return;
+    const horas = Number(materia.horasSemanales);
+    const basesPermitidas = horas === 6 ? ['Lunes'] : ['Lunes', 'Martes'];
+    const duracion = horas === 4 ? 120 : horas === 5 ? 120 : 120;
+    for (const dia of basesPermitidas) {
+      for (const franja of catalogos.horarios) {
+        if (franja.dia === dia && (Number(franja.horaFin.slice(0, 2)) - Number(franja.horaInicio.slice(0, 2))) === duracion / 60) {
+          baseSelect.append(opcion(franja.id, `${dia} ${franja.horaInicio}–${franja.horaFin}`));
         }
       }
     }
+  }
 
-    if (Number(seleccion.grupo.cantidadAlumnos) > Number(seleccion.salon.capacidad)) {
-      return `El grupo tiene ${seleccion.grupo.cantidadAlumnos} alumnos y el salón solamente tiene capacidad para ${seleccion.salon.capacidad}.`;
-    }
-    return '';
+  function limpiarRecomendaciones() {
+    profesoresDiv.replaceChildren();
+    salonesDiv.replaceChildren();
+    profesorSeleccionado = null;
+    salonSeleccionado = null;
+  }
+
+  function lineaResumen(etiqueta, valor) {
+    const parrafo = document.createElement('p');
+    const label = document.createElement('strong');
+    label.textContent = `${etiqueta}: `;
+    parrafo.append(label, document.createTextNode(valor));
+    resumen.append(parrafo);
   }
 
   function actualizarResumen() {
-    const seleccion = seleccionActual();
     resumen.replaceChildren();
+    const materia = materiaActual();
+    const grupo = grupoActual();
+    const periodo = periodoActual();
+    lineaResumen('Periodo', periodo ? `${periodo.clave} — ${periodo.nombre}` : 'Sin seleccionar');
+    lineaResumen('Materia', materia ? `${materia.clave} — ${materia.nombre}` : 'Sin seleccionar');
+    lineaResumen('Carga', materia ? `${materia.horasSemanales} horas semanales` : 'Sin seleccionar');
+    lineaResumen('Grupo', grupo ? `${grupo.nombre} — ${grupo.cantidadAlumnos} alumnos` : 'Sin seleccionar');
+    lineaResumen('Profesor', profesorSeleccionado ? `${profesorSeleccionado.nombre} — ${profesorSeleccionado.numeroEmpleado} — ${profesorSeleccionado.calificacionMateria}/10` : 'Sin seleccionar');
+    lineaResumen('Salón', salonSeleccionado ? `${salonSeleccionado.clave} — capacidad ${salonSeleccionado.capacidad}` : 'Sin seleccionar');
+    lineaResumen('Estado', 'BORRADOR');
 
-    construirResumenLinea('Materia', seleccion.materia?.nombre || 'Sin seleccionar');
-    construirResumenLinea('Profesor', seleccion.profesor
-      ? `${seleccion.profesor.nombre} ${seleccion.profesor.apellido}`.trim()
-      : 'Sin seleccionar');
-    construirResumenLinea('Grupo', seleccion.grupo
-      ? `${seleccion.grupo.nombre} — ${seleccion.grupo.cantidadAlumnos} alumnos`
-      : 'Sin seleccionar');
-    construirResumenLinea('Salón', seleccion.salon
-      ? `${seleccion.salon.nombre} — capacidad ${seleccion.salon.capacidad}`
-      : 'Sin seleccionar');
-    construirResumenLinea('Horarios', seleccion.horarios.length
-      ? seleccion.horarios.map((horario) => `${horario.dia} ${horario.horaInicio}–${horario.horaFin}`).join('\n')
-      : 'Sin seleccionar');
-
-    const error = validarSeleccion(seleccion);
-    mostrarMensaje(mensaje, error);
-    guardar.disabled = !datosListos || Boolean(error);
+    const valido = periodo && materia && grupo && patron?.ok && profesorSeleccionado?.compatible
+      && salonSeleccionado?.compatible !== false;
+    guardar.disabled = !valido;
   }
 
-  function cargarSelect(select, items, textoVacio, textoOpcion) {
-    select.replaceChildren();
-    agregarOpcion(select, '', textoVacio);
-    for (const item of items) agregarOpcion(select, item.id, textoOpcion(item));
-  }
-
-  function cargarHorarios() {
-    contenedorHorarios.replaceChildren();
-    const porDia = new Map(DIAS.map((dia) => [dia, []]));
-    for (const horario of catalogos.horarios) porDia.get(horario.dia)?.push(horario);
-
-    for (const dia of DIAS) {
-      const franjas = porDia.get(dia);
-      if (!franjas.length) continue;
-
-      const seccion = document.createElement('section');
-      seccion.className = 'w3-margin-bottom';
-      const encabezado = document.createElement('h3');
-      encabezado.className = 'w3-medium w3-text-indigo';
-      encabezado.textContent = dia;
-      seccion.appendChild(encabezado);
-
-      for (const franja of franjas) {
-        const etiqueta = document.createElement('label');
-        etiqueta.className = 'w3-block w3-padding-small';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = String(franja.id);
-        checkbox.className = 'w3-check';
-        checkbox.addEventListener('change', actualizarResumen);
-        const texto = document.createElement('span');
-        texto.className = 'w3-margin-left';
-        texto.textContent = `${franja.dia} ${franja.horaInicio}–${franja.horaFin}`;
-        etiqueta.append(checkbox, texto);
-        seccion.appendChild(etiqueta);
-      }
-      contenedorHorarios.appendChild(seccion);
+  function crearTarjetaProfesor(profesor) {
+    const card = document.createElement('div');
+    card.className = `w3-card w3-white w3-padding w3-margin-bottom ${profesor.compatible ? '' : 'w3-opacity'}`;
+    const titulo = document.createElement('p');
+    titulo.append(document.createTextNode(profesor.clasificacion === 'RECOMENDADO' ? '★ RECOMENDADO — ' : `${profesor.clasificacion} — `));
+    const nombre = document.createElement('strong');
+    nombre.textContent = `${profesor.nombre} (${profesor.numeroEmpleado})`;
+    titulo.append(nombre);
+    card.append(titulo);
+    const datos = [
+      `Calificación en la materia: ${profesor.calificacionMateria.toFixed(1)} / 10`,
+      `Carga: ${profesor.cargaActual} / ${profesor.maxHorasSemanales} h`,
+      `Disponible: ${profesor.compatible ? 'Sí' : 'No'}`,
+      `Conflictos: ${profesor.bloqueos.filter((item) => item.includes('CONFLICTO')).length}`
+    ];
+    for (const dato of datos) {
+      const p = document.createElement('p');
+      p.textContent = dato;
+      card.append(p);
     }
+    if (profesor.razones.length) {
+      const razones = document.createElement('div');
+      const encabezado = document.createElement('b');
+      encabezado.textContent = '¿Por qué?';
+      razones.append(encabezado);
+      const ul = document.createElement('ul');
+      for (const razon of profesor.razones) {
+        const li = document.createElement('li');
+        li.textContent = razon;
+        ul.append(li);
+      }
+      razones.append(ul);
+      card.append(razones);
+    }
+    if (profesor.compatible) {
+      const boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'w3-button w3-indigo w3-round';
+      boton.textContent = profesorSeleccionado?.id === profesor.id ? 'Profesor seleccionado' : 'Seleccionar profesor';
+      boton.addEventListener('click', () => {
+        profesorSeleccionado = profesor;
+        actualizarResumen();
+        refrescarBotonesProfesores();
+      });
+      card.append(boton);
+    } else {
+      const bloqueo = document.createElement('p');
+      bloqueo.className = 'w3-text-red';
+      bloqueo.textContent = profesor.bloqueos.join('; ');
+      card.append(bloqueo);
+    }
+    return card;
+  }
 
-    if (catalogos.horarios.length === 0) {
-      const vacio = document.createElement('p');
-      vacio.className = 'w3-text-grey';
-      vacio.textContent = 'No hay horarios disponibles registrados.';
-      contenedorHorarios.appendChild(vacio);
+  function refrescarBotonesProfesores() {
+    Array.from(profesoresDiv.children).forEach((card, index) => {
+      const boton = card.querySelector('button');
+      if (!boton) return;
+      const profesor = window.__candidatosCurso?.[index];
+      if (profesor) boton.textContent = profesorSeleccionado?.id === profesor.id ? 'Profesor seleccionado' : 'Seleccionar profesor';
+    });
+  }
+
+  async function recalcular() {
+    const materia = materiaActual();
+    const grupo = grupoActual();
+    limpiarRecomendaciones();
+    horarioGenerado.replaceChildren();
+    patron = null;
+    resumen.replaceChildren();
+    actualizarResumen();
+    if (!materia || !grupo || !baseSelect.value) return;
+    try {
+      patron = await getPatronesMateria(materia.id, Number(baseSelect.value));
+      const titulo = document.createElement('h3');
+      titulo.className = 'w3-medium';
+      titulo.textContent = 'Horario semanal generado automáticamente';
+      horarioGenerado.append(titulo);
+      for (const franja of patron.horarios) {
+        const p = document.createElement('p');
+        p.textContent = `${franja.dia} ${franja.horaInicio}–${franja.horaFin}`;
+        horarioGenerado.append(p);
+      }
+      const total = document.createElement('b');
+      total.textContent = `Total: ${patron.horasSemanales} horas semanales`;
+      horarioGenerado.append(total);
+
+      const periodo = periodoActual();
+      if (!periodo) return;
+      const candidatos = await getProfesoresRecomendados(materia.id, periodo.id, patron.horarioIds);
+      window.__candidatosCurso = candidatos;
+      profesoresDiv.replaceChildren();
+      for (const candidato of candidatos) profesoresDiv.append(crearTarjetaProfesor(candidato));
+      if (candidatos.length === 0) {
+        const vacio = document.createElement('p');
+        vacio.textContent = 'No hay profesores calificados para esta materia.';
+        profesoresDiv.append(vacio);
+      }
+
+      const salones = await getSalonesDisponibles(materia.id, grupo.id, patron.horarioIds);
+      window.__salonesCurso = salones;
+      salonesDiv.replaceChildren();
+      for (const salon of salones) {
+        const card = document.createElement('div');
+        card.className = 'w3-card w3-white w3-padding w3-margin-bottom';
+        const nombre = document.createElement('b');
+        nombre.textContent = `★ ${salon.clave} — ${salon.nombre}`;
+        const capacidad = document.createElement('p');
+        capacidad.textContent = `Capacidad: ${salon.capacidad}; Grupo: ${grupo.cantidadAlumnos}`;
+        const caracteristicas = document.createElement('p');
+        caracteristicas.textContent = `Características: ${salon.caracteristicas.join(', ') || 'Ninguna'}; Disponible en todo el horario: Sí`;
+        const boton = document.createElement('button');
+        boton.type = 'button';
+        boton.className = 'w3-button w3-green w3-round';
+        boton.textContent = salonSeleccionado?.id === salon.id ? 'Salón seleccionado' : 'Seleccionar salón';
+        boton.addEventListener('click', () => {
+          salonSeleccionado = salon;
+          actualizarResumen();
+          Array.from(salonesDiv.querySelectorAll('button')).forEach((item) => {
+            item.textContent = item === boton ? 'Salón seleccionado' : 'Seleccionar salón';
+          });
+        });
+        card.append(nombre, capacidad, caracteristicas, boton);
+        salonesDiv.append(card);
+      }
+      if (salones.length === 0) {
+        const vacio = document.createElement('p');
+        vacio.className = 'w3-text-red';
+        vacio.textContent = 'No hay salones compatibles y disponibles para este curso.';
+        salonesDiv.append(vacio);
+      }
+    } catch (error) {
+      texto(mensaje, error.message || 'No se pudo generar el horario.');
     }
   }
 
   try {
-    guardar.disabled = true;
-    const [materias, profesores, grupos, salones, horarios] = await Promise.all([
-      getMaterias(),
-      getProfesores(),
-      getGrupos(),
-      getSalones(),
-      getFranjasHorarias()
+    const [periodos, materias, grupos, horarios] = await Promise.all([
+      getPeriodos(), getMaterias(), getGrupos(), getFranjasHorarias()
     ]);
-    catalogos = { materias, profesores, grupos, salones, horarios };
+    catalogos = { periodos, materias, grupos, horarios };
+    cargarSelect(periodoSelect, periodos.filter((item) => item.estado !== 'CERRADO'), 'Selecciona un periodo', (item) => `${item.clave} — ${item.nombre} — ${item.estado}`);
+    cargarSelect(materiaSelect, materias, 'Selecciona una materia', (item) => `${item.clave} — ${item.nombre}`);
+    cargarSelect(grupoSelect, grupos, 'Selecciona un grupo', (item) => `${item.nombre} — ${item.cantidadAlumnos} alumnos`);
 
-    if (![materias, profesores, grupos, salones, horarios].every(Array.isArray)) {
-      throw new Error('No se pudo cargar correctamente uno o varios catálogos.');
-    }
-
-    cargarSelect(selectores.materia, materias, 'Selecciona una materia', (item) => `${item.clave} — ${item.nombre}`);
-    cargarSelect(selectores.profesor, profesores, 'Selecciona un profesor', (item) => (
-      `${item.numeroEmpleado} — ${item.nombre} ${item.apellido}`.trim()
-    ));
-    cargarSelect(selectores.grupo, grupos, 'Selecciona un grupo', (item) => (
-      `${item.nombre} — ${item.cantidadAlumnos} alumnos`
-    ));
-    cargarSelect(selectores.salon, salones, 'Selecciona un salón', (item) => (
-      `${item.nombre} — capacidad ${item.capacidad}`
-    ));
-    catalogos.horarios.sort((a, b) => (
-      DIAS.indexOf(a.dia) - DIAS.indexOf(b.dia) || a.horaInicio.localeCompare(b.horaInicio)
-    ));
-    cargarHorarios();
+    materiaSelect.addEventListener('change', () => {
+      mostrarMateria();
+      cargarBases();
+      recalcular();
+    });
+    grupoSelect.addEventListener('change', recalcular);
+    periodoSelect.addEventListener('change', recalcular);
+    baseSelect.addEventListener('change', recalcular);
 
     if (id) {
       titulo.textContent = 'Editar curso';
       const curso = await getCurso(id);
-      selectores.materia.value = String(curso.materiaId);
-      selectores.profesor.value = String(curso.profesorId);
-      selectores.grupo.value = String(curso.grupoId);
-      selectores.salon.value = String(curso.salonId);
-      const horariosSeleccionados = new Set((curso.horarioIds || []).map(String));
-      contenedorHorarios.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
-        checkbox.checked = horariosSeleccionados.has(checkbox.value);
-      });
+      periodoSelect.value = String(curso.periodoId || '');
+      materiaSelect.value = String(curso.materiaId);
+      grupoSelect.value = String(curso.grupoId);
+      mostrarMateria();
+      cargarBases();
+      const baseExistente = catalogos.horarios.find((franja) =>
+        (curso.horarioIds || []).includes(franja.id)
+        && ['Lunes', 'Martes'].includes(franja.dia)
+        && (Number(franja.horaFin.slice(0, 2)) - Number(franja.horaInicio.slice(0, 2))) === 2);
+      if (baseExistente) baseSelect.value = String(baseExistente.id);
+      await recalcular();
+      profesorSeleccionado = window.__candidatosCurso?.find((item) => item.id === curso.profesorId) || null;
+      salonSeleccionado = window.__salonesCurso?.find((item) => item.id === curso.salonId) || null;
     }
-
-    datosListos = true;
     actualizarResumen();
   } catch (error) {
-    mostrarMensaje(mensaje, error.message || 'No se pudieron cargar los datos del curso.');
-    guardar.disabled = true;
+    texto(mensaje, error.message || 'No se pudieron cargar los datos del curso.');
   }
-
-  Object.values(selectores).forEach((select) => select.addEventListener('change', actualizarResumen));
 
   formulario.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const seleccion = seleccionActual();
-    const error = validarSeleccion(seleccion);
-    mostrarMensaje(mensaje, error);
-    if (error || !datosListos) return;
-
+    texto(mensaje, '');
+    if (!patron?.ok || !profesorSeleccionado?.compatible || !salonSeleccionado) {
+      texto(mensaje, 'Selecciona periodo, materia, grupo, horario, profesor compatible y salón disponible.');
+      return;
+    }
     const payload = {
-      materiaId: Number(selectores.materia.value),
-      profesorId: Number(selectores.profesor.value),
-      grupoId: Number(selectores.grupo.value),
-      salonId: Number(selectores.salon.value),
-      horarioIds: seleccion.horarios.map((horario) => Number(horario.id))
+      periodoId: Number(periodoSelect.value),
+      materiaId: Number(materiaSelect.value),
+      grupoId: Number(grupoSelect.value),
+      profesorId: profesorSeleccionado.id,
+      salonId: salonSeleccionado.id,
+      horarioIds: patron.horarioIds,
+      estado: 'BORRADOR'
     };
-
     guardar.disabled = true;
     try {
       if (id) await actualizarCurso(id, payload);
       else await crearCurso(payload);
       window.location.href = 'cursos.html';
-    } catch (saveError) {
-      mostrarMensaje(mensaje, saveError.message || 'No se pudo guardar el curso.');
+    } catch (error) {
+      texto(mensaje, error.message || 'No se pudo guardar el curso.');
       guardar.disabled = false;
     }
   });
