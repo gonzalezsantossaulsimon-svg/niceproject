@@ -2,6 +2,8 @@ function solapan(aInicio, aFin, bInicio, bFin) {
   return aInicio < bFin && aFin > bInicio;
 }
 
+export const UMBRAL_CARGA_CERCANA = 0.8;
+
 export function recomendarProfesores(db, materiaId, periodoId, horarioIds, cursoIdActual = null) {
   const materia = db.prepare('SELECT id, nombre FROM materias WHERE id = ?').get(materiaId);
   if (!materia) return [];
@@ -54,7 +56,7 @@ export function recomendarProfesores(db, materiaId, periodoId, horarioIds, curso
       }
     }
 
-    if (maximo > 0 && cargaActual >= maximo * 0.9) {
+    if (maximo > 0 && cargaActual >= maximo * UMBRAL_CARGA_CERCANA) {
       advertencias.push('Carga cercana al máximo');
     }
     const razones = [

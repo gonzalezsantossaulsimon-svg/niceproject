@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planificación del periodo</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <style>
+    .planificacion-grid, .necesidades-grid { display:grid; gap:12px; }
+    .planificacion-grid { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    .necesidad-acciones { display:flex; flex-wrap:wrap; gap:8px; }
+    .necesidad-acciones .w3-button { margin:0; }
+    .form-necesidad { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:12px; align-items:end; }
+    .alternativa-propuesta { overflow-wrap:anywhere; }
+    #necesidades, #profesores, #salones { min-width:0; }
+    @media (max-width:768px) {
+      .form-necesidad { grid-template-columns:1fr; }
+      .form-necesidad .w3-button { width:100%; }
+      .w3-col.s6 { width:50%; }
+    }
+  </style>
+</head>
+<body class="w3-light-grey">
+  <nav class="w3-bar w3-indigo w3-padding">
+    <span class="w3-bar-item w3-large">NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="periodos.html" class="w3-bar-item w3-button w3-right">Periodos</a>
+  </nav>
+  <main class="w3-container w3-padding-16">
+    <h1 class="w3-text-indigo">Planificación del periodo</h1>
+    <label for="periodoId"><b>Periodo académico</b></label>
+    <select id="periodoId" class="w3-select w3-border"></select>
+    <div id="estadoCarga" class="w3-panel w3-pale-blue" aria-live="polite">Cargando periodos...</div>
+    <div id="mensajeOperacion" class="w3-panel" role="status" style="display:none;" aria-live="polite"></div>
+    <div id="contenido" style="display:none;">
+      <section>
+        <h2 class="w3-medium">Progreso de planificación</h2>
+        <div id="progreso" class="w3-row-padding"></div>
+        <div class="w3-light-gray w3-round">
+          <div id="barraProgreso" class="w3-container w3-green w3-round" style="width:0%">0%</div>
+        </div>
+      </section>
+      <section class="w3-margin-top">
+        <h2 class="w3-medium">Necesidades académicas</h2>
+        <div class="w3-card w3-white w3-padding w3-margin-bottom">
+          <h3 class="w3-medium">Nueva necesidad</h3>
+          <form id="formNecesidad" class="form-necesidad">
+            <div>
+              <label for="materiaNecesidad"><b>Materia</b></label>
+              <select id="materiaNecesidad" class="w3-select w3-border" required></select>
+            </div>
+            <div>
+              <label for="grupoNecesidad"><b>Grupo</b></label>
+              <select id="grupoNecesidad" class="w3-select w3-border" required></select>
+            </div>
+            <button type="submit" id="crearNecesidad" class="w3-button w3-green w3-round">Crear necesidad</button>
+          </form>
+        </div>
+        <div id="necesidades" aria-live="polite"></div>
+      </section>
+      <section class="w3-margin-top">
+        <h2 class="w3-medium">Carga docente</h2>
+        <div id="profesores" class="w3-row-padding"></div>
+      </section>
+      <section class="w3-margin-top">
+        <h2 class="w3-medium">Ocupación de salones</h2>
+        <div id="salones" class="w3-row-padding"></div>
+      </section>
+      <section class="w3-margin-top">
+        <h2 class="w3-medium">Conflictos de necesidades asignadas</h2>
+        <div id="conflictos"></div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="./js/planificacion-periodo.js"></script>
+</body>
+</html>

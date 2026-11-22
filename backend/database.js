@@ -181,6 +181,29 @@ export function createDatabase(databasePath = DB_PATH) {
         CHECK (estado IN ('BORRADOR', 'VALIDADO', 'PUBLICADO', 'CERRADO'))
     );
 
+    CREATE TABLE IF NOT EXISTS necesidades_planificacion (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      periodoId INTEGER NOT NULL,
+      materiaId INTEGER NOT NULL,
+      grupoId INTEGER NOT NULL,
+      cursoId INTEGER,
+      estado TEXT NOT NULL DEFAULT 'PENDIENTE'
+        CHECK (estado IN ('PENDIENTE', 'ASIGNADA', 'OMITIDA')),
+      FOREIGN KEY (periodoId)
+        REFERENCES periodos_academicos(id)
+        ON DELETE CASCADE,
+      FOREIGN KEY (materiaId)
+        REFERENCES materias(id)
+        ON DELETE RESTRICT,
+      FOREIGN KEY (grupoId)
+        REFERENCES grupos(id)
+        ON DELETE RESTRICT,
+      FOREIGN KEY (cursoId)
+        REFERENCES cursos(id)
+        ON DELETE SET NULL,
+      UNIQUE (periodoId, materiaId, grupoId)
+    );
+
     CREATE TABLE IF NOT EXISTS profesor_materia_calificaciones (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       profesorId INTEGER NOT NULL,

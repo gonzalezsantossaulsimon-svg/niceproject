@@ -25,6 +25,23 @@ export function seedApoyoAsignacion(db) {
     `).run();
     const periodo = db.prepare("SELECT id FROM periodos_academicos WHERE clave='2027-1'").get();
 
+    const necesidadesDemo = [
+      ['Bases de Datos', 'GRP-01', 'PENDIENTE'],
+      ['Programación', 'GRP-02', 'PENDIENTE'],
+      ['Seguridad Informática', 'GRP-03', 'OMITIDA']
+    ];
+    for (const [nombreMateria, claveGrupo, estado] of necesidadesDemo) {
+      const materia = db.prepare('SELECT id FROM materias WHERE LOWER(nombre)=LOWER(?)').get(nombreMateria);
+      const grupo = db.prepare('SELECT id FROM grupos WHERE clave=?').get(claveGrupo);
+      if (materia && grupo) {
+        db.prepare(`
+          INSERT OR IGNORE INTO necesidades_planificacion
+            (periodoId, materiaId, grupoId, cursoId, estado)
+          VALUES (?, ?, ?, NULL, ?)
+        `).run(periodo.id, materia.id, grupo.id, estado);
+      }
+    }
+
     db.prepare('UPDATE cursos SET periodoId = ? WHERE periodoId IS NULL').run(periodo.id);
 
     db.prepare("UPDATE profesores SET maxHorasSemanales = 20").run();
