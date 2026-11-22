@@ -14,6 +14,7 @@ Sistema web académico para gestionar profesores, academias y materias, consulta
 - `frontend-server.js` sirve los archivos del frontend en `http://localhost:5500`.
 - `backend/database.js` inicializa el esquema de SQLite.
 - `backend/migrate-json-to-sqlite.js` importa los datos iniciales de JSON a SQLite.
+- `backend/migrations/seed_demo_catalogos.js` agrega de forma idempotente los catálogos demo de grupos, salones y franjas horarias.
 - `INICIAR_NICEPROJECT.bat` instala dependencias si hacen falta, ejecuta la migración y arranca backend y frontend.
 
 ## Estructura del proyecto
@@ -67,6 +68,8 @@ npm start
 ```
 
 La API queda disponible en `http://localhost:3000` y `frontend-server.js` sirve el frontend en `http://localhost:5500/login.html`.
+
+La migración `npm run migrate` conserva los datos existentes y agrega los 5 grupos, 6 salones y 15 franjas horarias de demostración que falten, sin reemplazar claves ya registradas.
 
 ## Base de datos SQLite
 

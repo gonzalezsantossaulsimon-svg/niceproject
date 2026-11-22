@@ -3,7 +3,7 @@ import cors from 'cors';
 import getDatabase from './database.js';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const db = getDatabase();
 const DIAS_PERMITIDOS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const ORDEN_DIAS = Object.fromEntries(DIAS_PERMITIDOS.map((dia, index) => [dia, index + 1]));
