@@ -5,6 +5,8 @@ import { generarPatronAcademico } from './services/horario-academico.js';
 import { recomendarProfesores } from './services/recomendacion-profesores.js';
 import { listarSalonesDisponibles } from './services/disponibilidad-salones.js';
 import { resumirPeriodo, validarCursoAcademico } from './services/validacion-periodo.js';
+import { resumirPlanificacionPeriodo } from './services/planificacion-periodo.js';
+import { generarPropuestasPlanificacion } from './services/propuestas-planificacion.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -1938,43 +1940,51 @@ app.get('/api/cursos/:id', (req, res) => {
   }
 });
 
+function crearCursoCompleto(payload) {
+  const validacion = validarCursoPayload(payload);
+  if (validacion) {
+    const error = new Error(validacion);
+    error.codigo = 'VALIDACION_CURSO';
+    throw error;
+  }
+
+  const { materiaId, profesorId, grupoId, salonId, horarioIds } = payload;
+  const periodoId = normalizePositiveInteger(payload?.periodoId)
+    || db.prepare("SELECT id FROM periodos_academicos WHERE estado='BORRADOR' ORDER BY id LIMIT 1").get()?.id;
+  const estado = payload?.estado === 'VALIDADO' ? 'VALIDADO'
+    : payload?.estado === 'PUBLICADO' ? 'PUBLICADO'
+    : 'BORRADOR';
+
+  return db.transaction(() => {
+    const result = db.prepare(
+      'INSERT INTO cursos (materiaId, profesorId, grupoId, salonId, periodoId, estado) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(materiaId, profesorId, grupoId, salonId, periodoId, estado);
+    const cursoId = Number(result.lastInsertRowid);
+    const insertarHorario = db.prepare(
+      'INSERT INTO curso_horarios (cursoId, horarioId) VALUES (?, ?)'
+    );
+    for (const horarioId of horarioIds) insertarHorario.run(cursoId, horarioId);
+    return cursoId;
+  })();
+}
+
 app.post('/api/cursos', (req, res) => {
   try {
-    const validacion = validarCursoPayload(req.body);
-
-    if (validacion) {
-      return sendError(res, 400, validacion);
+    const periodoIdSolicitado = normalizePositiveInteger(req.body?.periodoId);
+    const periodoCurso = periodoIdSolicitado
+      ? db.prepare('SELECT estado FROM periodos_academicos WHERE id=?').get(periodoIdSolicitado)
+      : null;
+    if (periodoCurso && ['VALIDADO','PUBLICADO','CERRADO'].includes(periodoCurso.estado)) {
+      return sendError(res, 409, 'No puede modificarse un curso fuera de un periodo BORRADOR');
     }
-
-    const { materiaId, profesorId, grupoId, salonId, horarioIds } = req.body;
-    const periodoId = normalizePositiveInteger(req.body?.periodoId)
-      || db.prepare("SELECT id FROM periodos_academicos WHERE estado='BORRADOR' ORDER BY id LIMIT 1").get()?.id;
-    const estado = req.body?.estado === 'VALIDADO' ? 'VALIDADO' : 'BORRADOR';
-
-    const tx = db.transaction(() => {
-      const result = db.prepare(
-        'INSERT INTO cursos (materiaId, profesorId, grupoId, salonId, periodoId, estado) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(materiaId, profesorId, grupoId, salonId, periodoId, estado);
-
-      const cursoId = Number(result.lastInsertRowid);
-
-      const insertCursoHorario = db.prepare(
-        'INSERT INTO curso_horarios (cursoId, horarioId) VALUES (?, ?)'
-      );
-
-      for (const horarioId of horarioIds) {
-        insertCursoHorario.run(cursoId, horarioId);
-      }
-
-      return cursoId;
-    });
-
-    const cursoId = tx();
+    const cursoId = crearCursoCompleto(req.body);
     const curso = db.prepare('SELECT * FROM cursos WHERE id = ?').get(cursoId);
 
     return res.status(201).json(buildCursoPayload(curso));
   } catch (error) {
-    console.error(error);
+    if (error?.codigo === 'VALIDACION_CURSO') {
+      return sendError(res, 400, error.message);
+    }
 
     if (error?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
       return sendError(res, 400, 'La relación del curso contiene datos inválidos');
@@ -1999,6 +2009,12 @@ app.put('/api/cursos/:id', (req, res) => {
     const existente = db.prepare('SELECT * FROM cursos WHERE id = ?').get(id);
     if (!existente) {
       return sendError(res, 404, 'Curso no encontrado');
+    }
+    const periodoCurso = existente.periodoId
+      ? db.prepare('SELECT estado FROM periodos_academicos WHERE id=?').get(existente.periodoId)
+      : null;
+    if (periodoCurso && ['VALIDADO','PUBLICADO','CERRADO'].includes(periodoCurso.estado)) {
+      return sendError(res, 409, 'No puede modificarse un curso fuera de un periodo BORRADOR');
     }
 
     const validacion = validarCursoPayload(req.body, id);
@@ -2111,6 +2127,196 @@ app.get('/api/periodos/:id/conflictos', (req, res) => {
   const resumen = resumirPeriodo(db, parseCatalogId(req.params.id));
   if (!resumen) return sendError(res, 404, 'Periodo no encontrado');
   return res.json(resumen);
+});
+
+function construirNecesidadPayload(necesidad) {
+  if (!necesidad) return null;
+  const materia = db.prepare('SELECT * FROM materias WHERE id = ?').get(necesidad.materiaId);
+  const grupo = db.prepare('SELECT * FROM grupos WHERE id = ?').get(necesidad.grupoId);
+  const curso = necesidad.cursoId
+    ? db.prepare('SELECT * FROM cursos WHERE id = ?').get(necesidad.cursoId)
+    : null;
+  return {
+    ...necesidad,
+    materia: materia ? { ...materia } : null,
+    grupo: grupo ? { ...grupo } : null,
+    curso: curso ? buildCursoPayload(curso) : null
+  };
+}
+
+app.get('/api/periodos/:id/necesidades-planificacion', (req, res) => {
+  const periodoId = parseCatalogId(req.params.id);
+  if (!periodoId || !db.prepare('SELECT 1 FROM periodos_academicos WHERE id = ?').get(periodoId)) {
+    return sendError(res, 404, 'Periodo no encontrado');
+  }
+  const necesidades = db.prepare(`
+    SELECT * FROM necesidades_planificacion
+    WHERE periodoId = ?
+    ORDER BY id
+  `).all(periodoId);
+  return res.json(necesidades.map(construirNecesidadPayload));
+});
+
+app.post('/api/periodos/:id/necesidades-planificacion', (req, res) => {
+  const periodoId = parseCatalogId(req.params.id);
+  const periodo = periodoId
+    ? db.prepare('SELECT * FROM periodos_academicos WHERE id = ?').get(periodoId)
+    : null;
+  if (!periodo) return sendError(res, 404, 'Periodo no encontrado');
+  if (periodo.estado !== 'BORRADOR') return sendError(res, 409, 'Solo puede modificarse un periodo en BORRADOR');
+
+  const materiaId = normalizePositiveInteger(req.body?.materiaId);
+  const grupoId = normalizePositiveInteger(req.body?.grupoId);
+  if (!materiaId || !db.prepare('SELECT 1 FROM materias WHERE id = ?').get(materiaId)) {
+    return sendError(res, 400, 'La materia seleccionada no existe');
+  }
+  if (!grupoId || !db.prepare('SELECT 1 FROM grupos WHERE id = ?').get(grupoId)) {
+    return sendError(res, 400, 'El grupo seleccionado no existe');
+  }
+  if (db.prepare('SELECT 1 FROM necesidades_planificacion WHERE periodoId=? AND materiaId=? AND grupoId=?').get(periodoId, materiaId, grupoId)) {
+    return sendError(res, 409, 'Ya existe una necesidad para esta combinación periodo, materia y grupo');
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO necesidades_planificacion (periodoId, materiaId, grupoId, cursoId, estado)
+      VALUES (?, ?, ?, NULL, 'PENDIENTE')
+    `).run(periodoId, materiaId, grupoId);
+    const necesidad = db.prepare('SELECT * FROM necesidades_planificacion WHERE id=?').get(result.lastInsertRowid);
+    return res.status(201).json(construirNecesidadPayload(necesidad));
+  } catch (error) {
+    if (error?.code?.startsWith('SQLITE_CONSTRAINT')) return sendError(res, 409, 'No se pudo crear la necesidad');
+    console.error(error);
+    return sendError(res, 500, 'Error al crear la necesidad');
+  }
+});
+
+app.put('/api/necesidades-planificacion/:id', (req, res) => {
+  const id = parseCatalogId(req.params.id);
+  const necesidad = id
+    ? db.prepare('SELECT * FROM necesidades_planificacion WHERE id=?').get(id)
+    : null;
+  if (!necesidad) return sendError(res, 404, 'Necesidad no encontrada');
+  const periodo = db.prepare('SELECT * FROM periodos_academicos WHERE id=?').get(necesidad.periodoId);
+  if (periodo?.estado !== 'BORRADOR') return sendError(res, 409, 'Solo puede modificarse un periodo en BORRADOR');
+  if (necesidad.estado === 'ASIGNADA' || necesidad.cursoId) {
+    return sendError(res, 409, 'Una necesidad asignada no puede modificarse directamente');
+  }
+
+  const materiaId = normalizePositiveInteger(req.body?.materiaId) || necesidad.materiaId;
+  const grupoId = normalizePositiveInteger(req.body?.grupoId) || necesidad.grupoId;
+  const estado = normalizeText(req.body?.estado).toUpperCase() || necesidad.estado;
+  if (!['PENDIENTE', 'OMITIDA'].includes(estado)) return sendError(res, 400, 'Estado de necesidad inválido');
+  if (!db.prepare('SELECT 1 FROM materias WHERE id=?').get(materiaId)) return sendError(res, 400, 'La materia seleccionada no existe');
+  if (!db.prepare('SELECT 1 FROM grupos WHERE id=?').get(grupoId)) return sendError(res, 400, 'El grupo seleccionado no existe');
+  if (db.prepare('SELECT 1 FROM necesidades_planificacion WHERE periodoId=? AND materiaId=? AND grupoId=? AND id!=?').get(necesidad.periodoId, materiaId, grupoId, id)) {
+    return sendError(res, 409, 'Ya existe una necesidad para esta combinación periodo, materia y grupo');
+  }
+
+  try {
+    db.prepare('UPDATE necesidades_planificacion SET materiaId=?, grupoId=?, estado=? WHERE id=?')
+      .run(materiaId, grupoId, estado, id);
+    return res.json(construirNecesidadPayload(db.prepare('SELECT * FROM necesidades_planificacion WHERE id=?').get(id)));
+  } catch (error) {
+    if (error?.code?.startsWith('SQLITE_CONSTRAINT')) return sendError(res, 409, 'No se pudo modificar la necesidad');
+    console.error(error);
+    return sendError(res, 500, 'Error al modificar la necesidad');
+  }
+});
+
+app.delete('/api/necesidades-planificacion/:id', (req, res) => {
+  const id = parseCatalogId(req.params.id);
+  const necesidad = id ? db.prepare('SELECT * FROM necesidades_planificacion WHERE id=?').get(id) : null;
+  if (!necesidad) return sendError(res, 404, 'Necesidad no encontrada');
+  const periodo = db.prepare('SELECT * FROM periodos_academicos WHERE id=?').get(necesidad.periodoId);
+  if (periodo?.estado !== 'BORRADOR') return sendError(res, 409, 'Solo puede modificarse un periodo en BORRADOR');
+  if (necesidad.estado === 'ASIGNADA' || necesidad.cursoId) {
+    return sendError(res, 409, 'Una necesidad asignada no puede eliminarse directamente');
+  }
+  db.prepare('DELETE FROM necesidades_planificacion WHERE id=?').run(id);
+  return res.json({ mensaje: 'Necesidad eliminada correctamente', necesidad: construirNecesidadPayload(necesidad) });
+});
+
+app.get('/api/periodos/:id/planificacion', (req, res) => {
+  const periodoId = parseCatalogId(req.params.id);
+  const resumen = resumirPlanificacionPeriodo(db, periodoId);
+  if (!resumen) return sendError(res, 404, 'Periodo no encontrado');
+  return res.json(resumen);
+});
+
+app.post('/api/periodos/:id/propuestas-planificacion', (req, res) => {
+  const periodoId = parseCatalogId(req.params.id);
+  const periodo = periodoId ? db.prepare('SELECT * FROM periodos_academicos WHERE id=?').get(periodoId) : null;
+  if (!periodo) {
+    return sendError(res, 404, 'Periodo no encontrado');
+  }
+  if (!['BORRADOR', 'VALIDADO'].includes(periodo.estado)) {
+    return sendError(res, 409, 'Las propuestas solo pueden simularse en periodos BORRADOR o VALIDADO');
+  }
+  const necesidadId = normalizePositiveInteger(req.body?.necesidadId);
+  if (!necesidadId) return sendError(res, 400, 'necesidadId es obligatorio');
+  const limite = normalizePositiveInteger(req.body?.limite) || 3;
+  const resultado = generarPropuestasPlanificacion(db, periodoId, necesidadId, limite);
+  if (!resultado.ok) {
+    const status = resultado.error === 'NECESIDAD_NO_EXISTE' ? 404 : 409;
+    return sendError(res, status, resultado.mensaje);
+  }
+  return res.json(resultado);
+});
+
+app.post('/api/periodos/:id/aplicar-propuesta', (req, res) => {
+  const periodoId = parseCatalogId(req.params.id);
+  const periodo = periodoId ? db.prepare('SELECT * FROM periodos_academicos WHERE id=?').get(periodoId) : null;
+  if (!periodo) return sendError(res, 404, 'Periodo no encontrado');
+  if (periodo.estado !== 'BORRADOR') return sendError(res, 409, 'Solo pueden aplicarse propuestas en un periodo BORRADOR');
+
+  const necesidadId = normalizePositiveInteger(req.body?.necesidadId);
+  const profesorId = normalizePositiveInteger(req.body?.profesorId);
+  const salonId = normalizePositiveInteger(req.body?.salonId);
+  const horarioIds = req.body?.horarioIds;
+  if (!necesidadId || !profesorId || !salonId || !Array.isArray(horarioIds)) {
+    return sendError(res, 400, 'necesidadId, profesorId, salonId y horarioIds son obligatorios');
+  }
+  const necesidad = db.prepare('SELECT * FROM necesidades_planificacion WHERE id=? AND periodoId=?').get(necesidadId, periodoId);
+  if (!necesidad) return sendError(res, 404, 'Necesidad no encontrada');
+  if (necesidad.estado !== 'PENDIENTE' || necesidad.cursoId) {
+    return sendError(res, 409, 'La necesidad ya no está pendiente');
+  }
+
+  const payload = {
+    materiaId: necesidad.materiaId,
+    grupoId: necesidad.grupoId,
+    profesorId,
+    salonId,
+    horarioIds,
+    periodoId,
+    estado: 'BORRADOR'
+  };
+  const validacion = validarCursoPayload(payload);
+  if (validacion) return sendError(res, 409, `La propuesta ya no es válida. ${validacion}`);
+
+  try {
+    const cursoId = db.transaction(() => {
+      const cursoId = crearCursoCompleto(payload);
+      db.prepare(`
+        UPDATE necesidades_planificacion
+        SET estado='ASIGNADA', cursoId=?
+        WHERE id=? AND estado='PENDIENTE' AND cursoId IS NULL
+      `).run(cursoId, necesidadId);
+      return cursoId;
+    })();
+    const curso = db.prepare('SELECT * FROM cursos WHERE id=?').get(cursoId);
+    const necesidadActualizada = db.prepare('SELECT * FROM necesidades_planificacion WHERE id=?').get(necesidadId);
+    return res.status(201).json({
+      curso: buildCursoPayload(curso),
+      necesidad: construirNecesidadPayload(necesidadActualizada)
+    });
+  } catch (error) {
+    if (error?.codigo === 'VALIDACION_CURSO') return sendError(res, 409, `La propuesta ya no es válida. ${error.message}`);
+    if (error?.code?.startsWith('SQLITE_CONSTRAINT')) return sendError(res, 409, 'La propuesta cambió el contexto y ya no puede aplicarse');
+    console.error(error);
+    return sendError(res, 500, 'Error al aplicar la propuesta');
+  }
 });
 
 app.get('/api/materias/:id/patrones-horarios', (req, res) => {
@@ -2261,9 +2467,22 @@ app.delete('/api/cursos/:id', (req, res) => {
     if (!curso) {
       return sendError(res, 404, 'Curso no encontrado');
     }
+    const periodoCurso = curso.periodoId
+      ? db.prepare('SELECT estado FROM periodos_academicos WHERE id=?').get(curso.periodoId)
+      : null;
+    if (periodoCurso && ['VALIDADO','PUBLICADO','CERRADO'].includes(periodoCurso.estado)) {
+      return sendError(res, 409, 'No puede modificarse un curso fuera de un periodo BORRADOR');
+    }
 
     const payload = buildCursoPayload(curso);
-    db.prepare('DELETE FROM cursos WHERE id = ?').run(id);
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE necesidades_planificacion
+        SET estado='PENDIENTE', cursoId=NULL
+        WHERE cursoId=?
+      `).run(id);
+      db.prepare('DELETE FROM cursos WHERE id = ?').run(id);
+    })();
 
     return res.json({
       mensaje: 'Curso eliminado correctamente',

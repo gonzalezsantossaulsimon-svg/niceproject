@@ -1,3 +1,5 @@
+import { UMBRAL_CARGA_CERCANA } from './recomendacion-profesores.js';
+
 function solapan(aInicio, aFin, bInicio, bFin) {
   return aInicio < bFin && aFin > bInicio;
 }
@@ -83,7 +85,7 @@ export function resumirPeriodo(db, periodoId) {
         motivo: validacion.bloqueos.join('; '),
         bloqueos: validacion.bloqueos
       });
-    } else if (detalle.maxHorasSemanales > 0 && detalle.cargaActual >= detalle.maxHorasSemanales * 0.9) {
+    } else if (detalle.maxHorasSemanales > 0 && detalle.cargaActual >= detalle.maxHorasSemanales * UMBRAL_CARGA_CERCANA) {
       advertencias.push({
         cursoId: curso.id,
         materia: `${detalle.materiaClave} — ${detalle.materiaNombre}`,

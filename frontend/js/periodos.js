@@ -26,6 +26,10 @@ async function cargar() {
     conflictos.href = `conflictos.html?periodoId=${encodeURIComponent(periodo.id)}`;
     conflictos.className = 'w3-button w3-orange w3-round w3-margin-right';
     conflictos.textContent = 'Conflictos';
+    const planificacion = document.createElement('a');
+    planificacion.href = `planificacion-periodo.html?periodoId=${encodeURIComponent(periodo.id)}`;
+    planificacion.className = 'w3-button w3-blue w3-round w3-margin-right';
+    planificacion.textContent = 'Planificación';
     const validar = document.createElement('button');
     validar.type = 'button';
     validar.className = 'w3-button w3-green w3-round';
@@ -39,7 +43,7 @@ async function cargar() {
         await cargar();
       } catch (error) { window.alert(error.message); }
     });
-    acciones.append(editar, conflictos, validar);
+    acciones.append(editar, conflictos, planificacion, validar);
     card.append(titulo, estado, fechas, acciones);
     contenedor.append(card);
   }

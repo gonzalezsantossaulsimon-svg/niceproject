@@ -137,6 +137,7 @@ test('HTTP smoke, CRUD curso, restricciones duras y publicación en DB aislada',
     const response = await request(method,route,body);
     assert.equal(response.status,200,`${method} ${route}: ${JSON.stringify(response.data)}`);
   }
+
   const monday = await request('GET',`/materias/${matterId}/patrones-horarios?horarioBaseId=${slots.monday}`);
   assert.equal(monday.status,200);
   const ids = monday.data.horarioIds;
@@ -149,6 +150,51 @@ test('HTTP smoke, CRUD curso, restricciones duras y publicación en DB aislada',
   assert.equal((await request('GET',`/periodos/${periodId}/conflictos`)).status,200);
   assert.equal((await request('GET',`/profesores/${profIds[0]}/calificaciones`)).status,200);
   assert.equal((await request('GET',`/profesores/${profIds[0]}/disponibilidad`)).status,200);
+  const necesidadCreada = await request('POST',`/periodos/${periodId}/necesidades-planificacion`,{
+    materiaId:matterId,
+    grupoId:groupIds[0]
+  });
+  assert.equal(necesidadCreada.status,201,JSON.stringify(necesidadCreada.data));
+  assert.equal(necesidadCreada.data.estado,'PENDIENTE');
+  assert.equal((await request('POST',`/periodos/${periodId}/necesidades-planificacion`,{
+    materiaId:matterId,
+    grupoId:groupIds[0]
+  })).status,409,'duplicated need');
+  const necesidadEditada = await request('PUT',`/necesidades-planificacion/${necesidadCreada.data.id}`,{
+    materiaId:matterId,
+    grupoId:groupIds[0],
+    estado:'OMITIDA'
+  });
+  assert.equal(necesidadEditada.status,200);
+  assert.equal(necesidadEditada.data.estado,'OMITIDA');
+  const omitidaResumen = await request('GET',`/periodos/${periodId}/planificacion`);
+  assert.equal(omitidaResumen.status,200);
+  assert.ok(omitidaResumen.data.progreso.omitidas >= 1);
+  assert.equal((await request('PUT',`/necesidades-planificacion/${necesidadCreada.data.id}`,{
+    estado:'PENDIENTE'
+  })).status,200,'restore pending');
+  const necesidadEliminar = await request('POST',`/periodos/${periodId}/necesidades-planificacion`,{
+    materiaId:matterId,
+    grupoId:groupIds[1]
+  });
+  assert.equal(necesidadEliminar.status,201);
+  assert.equal((await request('DELETE',`/necesidades-planificacion/${necesidadEliminar.data.id}`)).status,200);
+  const necesidadAsignada = await request('POST',`/periodos/${periodId}/aplicar-propuesta`,{
+    necesidadId:necesidadCreada.data.id,
+    profesorId:profIds[0],
+    salonId:roomIds[0],
+    horarioIds:ids
+  });
+  assert.equal(necesidadAsignada.status,201,JSON.stringify(necesidadAsignada.data));
+  const asignadaResumen = await request('GET',`/periodos/${periodId}/planificacion`);
+  assert.equal(asignadaResumen.status,200);
+  assert.ok(asignadaResumen.data.progreso.asignadas >= 1);
+  assert.equal((await request('DELETE',`/necesidades-planificacion/${necesidadCreada.data.id}`)).status,409,
+    'assigned need cannot be deleted');
+  assert.equal((await request('DELETE',`/cursos/${necesidadAsignada.data.curso.id}`)).status,200,
+    'resolve assigned need by deleting associated course');
+  assert.equal((await request('DELETE',`/necesidades-planificacion/${necesidadCreada.data.id}`)).status,200,
+    'pending need can be deleted after resolving course');
 
   const scoreEdit = await request('PUT',`/profesores/${profIds[0]}/calificaciones`,{
     calificaciones:[{materiaId: matterId,calificacion:8}]
@@ -226,6 +272,12 @@ test('HTTP smoke, CRUD curso, restricciones duras y publicación en DB aislada',
   assert.equal(newPeriod.status,201);
   assert.equal((await request('PUT',`/periodos/${newPeriod.data.id}`,{estado:'VALIDADO'})).status,200);
   assert.equal((await request('PUT',`/periodos/${newPeriod.data.id}`,{estado:'PUBLICADO'})).status,200);
+  assert.equal((await request('POST',`/periodos/${newPeriod.data.id}/necesidades-planificacion`,{
+    materiaId:matterId,
+    grupoId:groupIds[0]
+  })).status,409,'needs cannot be created in published period');
+  assert.equal((await request('PUT',`/periodos/${newPeriod.data.id}`,{estado:'CERRADO'})).status,200);
+  assert.equal((await request('GET',`/periodos/${newPeriod.data.id}/planificacion`)).status,200);
 
   const conflicts = await request('GET',`/periodos/${periodId}/conflictos`);
   assert.equal(conflicts.status,200);

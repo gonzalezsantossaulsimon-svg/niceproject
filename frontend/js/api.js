@@ -44,6 +44,27 @@ export async function actualizarPeriodo(id, data) {
 export async function getConflictosPeriodo(id) {
   return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/conflictos`, 'GET', undefined, 'Error al obtener conflictos');
 }
+export async function getPlanificacionPeriodo(id) {
+  return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/planificacion`, 'GET', undefined, 'Error al obtener la planificación');
+}
+export async function getNecesidadesPeriodo(id) {
+  return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/necesidades-planificacion`, 'GET', undefined, 'Error al obtener necesidades');
+}
+export async function crearNecesidadPeriodo(id, data) {
+  return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/necesidades-planificacion`, 'POST', data, 'Error al crear la necesidad');
+}
+export async function actualizarNecesidad(id, data) {
+  return solicitarCatalogo(`/necesidades-planificacion/${encodeURIComponent(id)}`, 'PUT', data, 'Error al modificar la necesidad');
+}
+export async function eliminarNecesidad(id) {
+  return solicitarCatalogo(`/necesidades-planificacion/${encodeURIComponent(id)}`, 'DELETE', undefined, 'Error al eliminar la necesidad');
+}
+export async function generarPropuestas(id, data) {
+  return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/propuestas-planificacion`, 'POST', data, 'Error al generar propuestas');
+}
+export async function aplicarPropuesta(id, data) {
+  return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/aplicar-propuesta`, 'POST', data, 'Error al aplicar la propuesta');
+}
 export async function getPatronesMateria(materiaId, horarioBaseId) {
   return solicitarCatalogo(`/materias/${encodeURIComponent(materiaId)}/patrones-horarios?horarioBaseId=${encodeURIComponent(horarioBaseId)}`, 'GET', undefined, 'Error al generar el horario');
 }
