@@ -170,7 +170,78 @@ export function createDatabase(databasePath = DB_PATH) {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_materias_academia_unique
       ON materias_academia (academiaClave, LOWER(nombre));
+
+    CREATE TABLE IF NOT EXISTS periodos_academicos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clave TEXT NOT NULL UNIQUE,
+      nombre TEXT NOT NULL,
+      fechaInicio TEXT,
+      fechaFin TEXT,
+      estado TEXT NOT NULL DEFAULT 'BORRADOR'
+        CHECK (estado IN ('BORRADOR', 'VALIDADO', 'PUBLICADO', 'CERRADO'))
+    );
+
+    CREATE TABLE IF NOT EXISTS profesor_materia_calificaciones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      profesorId INTEGER NOT NULL,
+      materiaId INTEGER NOT NULL,
+      calificacion REAL NOT NULL CHECK (calificacion >= 0 AND calificacion <= 10),
+      FOREIGN KEY (profesorId) REFERENCES profesores(id) ON DELETE CASCADE,
+      FOREIGN KEY (materiaId) REFERENCES materias(id) ON DELETE CASCADE,
+      UNIQUE (profesorId, materiaId)
+    );
+
+    CREATE TABLE IF NOT EXISTS profesor_disponibilidad (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      profesorId INTEGER NOT NULL,
+      dia TEXT NOT NULL
+        CHECK (dia IN ('Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado')),
+      horaInicio TEXT NOT NULL,
+      horaFin TEXT NOT NULL,
+      disponible INTEGER NOT NULL DEFAULT 1 CHECK (disponible IN (0, 1)),
+      FOREIGN KEY (profesorId) REFERENCES profesores(id) ON DELETE CASCADE,
+      UNIQUE (profesorId, dia, horaInicio, horaFin)
+    );
+
+    CREATE TABLE IF NOT EXISTS caracteristicas_salones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      salonId INTEGER NOT NULL,
+      caracteristica TEXT NOT NULL,
+      FOREIGN KEY (salonId) REFERENCES salones(id) ON DELETE CASCADE,
+      UNIQUE (salonId, caracteristica)
+    );
+
+    CREATE TABLE IF NOT EXISTS materia_requisitos_salon (
+      materiaId INTEGER NOT NULL PRIMARY KEY,
+      tipoRequerido TEXT,
+      caracteristicas TEXT NOT NULL DEFAULT '[]',
+      FOREIGN KEY (materiaId) REFERENCES materias(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS salon_disponibilidad (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      salonId INTEGER NOT NULL,
+      dia TEXT NOT NULL
+        CHECK (dia IN ('Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado')),
+      horaInicio TEXT NOT NULL,
+      horaFin TEXT NOT NULL,
+      disponible INTEGER NOT NULL DEFAULT 1 CHECK (disponible IN (0, 1)),
+      FOREIGN KEY (salonId) REFERENCES salones(id) ON DELETE CASCADE,
+      UNIQUE (salonId, dia, horaInicio, horaFin)
+    );
   `);
+
+  function ensureColumn(table, column, definition) {
+    const exists = db.prepare(`PRAGMA table_info(${table})`).all()
+      .some((item) => item.name === column);
+    if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+
+  ensureColumn('materias', 'horasSemanales', 'INTEGER NOT NULL DEFAULT 4 CHECK (horasSemanales IN (4, 5, 6))');
+  ensureColumn('profesores', 'maxHorasSemanales', 'INTEGER NOT NULL DEFAULT 20 CHECK (maxHorasSemanales >= 0)');
+  ensureColumn('salones', 'tipo', "TEXT NOT NULL DEFAULT 'AULA' CHECK (tipo IN ('AULA', 'LABORATORIO', 'AUDITORIO'))");
+  ensureColumn('cursos', 'periodoId', 'INTEGER');
+  ensureColumn('cursos', 'estado', "TEXT NOT NULL DEFAULT 'BORRADOR' CHECK (estado IN ('BORRADOR', 'VALIDADO', 'PUBLICADO'))");
 
   return db;
 }

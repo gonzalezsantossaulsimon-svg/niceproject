@@ -89,6 +89,20 @@
           </div>
         </div>
 
+        <label class="w3-text-indigo w3-margin-top" for="maxHorasSemanales"><b>Carga máxima semanal</b></label>
+        <input class="w3-input w3-border" id="maxHorasSemanales" type="number" min="0" value="20">
+        <p class="w3-text-grey" id="cargaActualTexto">Carga actual: calculada desde los cursos</p>
+
+        <fieldset class="w3-border w3-padding w3-margin-top">
+          <legend><b>Calificaciones por materia</b></legend>
+          <div id="calificacionesMateria"></div>
+        </fieldset>
+
+        <fieldset class="w3-border w3-padding w3-margin-top">
+          <legend><b>Disponibilidad semanal</b></legend>
+          <div id="disponibilidadProfesor"></div>
+        </fieldset>
+
         <hr>
 
         <button type="submit" class="w3-btn w3-green w3-round" id="btnGuardar" disabled>
@@ -175,6 +189,9 @@
         document.getElementById('sni').value = p.sni || 'Ninguno';
         document.getElementById('perfilPRODEP').checked = Boolean(p.perfilPRODEP);
         document.getElementById('academiaId').value = p.academiaId || '';
+        document.getElementById('maxHorasSemanales').value = String(p.maxHorasSemanales ?? 20);
+        document.getElementById('cargaActualTexto').textContent =
+          `Carga actual: ${p.cargaActual ?? 0} horas; Disponibles: ${p.horasDisponibles ?? p.maxHorasSemanales ?? 20}`;
       } catch (err) {
         mostrarError(err.message || 'No fue posible cargar el profesor');
       }
@@ -214,7 +231,8 @@
         doctorado: document.getElementById('doctorado').value.trim(),
         sni: document.getElementById('sni').value,
         perfilPRODEP: document.getElementById('perfilPRODEP').checked,
-        academiaId: document.getElementById('academiaId').value
+        academiaId: document.getElementById('academiaId').value,
+        maxHorasSemanales: Number(document.getElementById('maxHorasSemanales').value)
       };
 
       const error = validarFormulario(data);
@@ -230,6 +248,7 @@
       try {
         if (id) {
           await actualizarProfesor(id, data);
+          await window.guardarDatosAcademicos?.(id);
         } else {
           await crearProfesor(data);
         }
@@ -254,6 +273,119 @@
     }
 
     inicializarFormulario();
+  </script>
+  <script type="module">
+    import {
+      getMaterias,
+      getProfesor,
+      actualizarCalificacionesProfesor,
+      actualizarDisponibilidadProfesor,
+      eliminarCalificacionProfesor
+    } from './js/api.js';
+    import { requiereSesion } from './js/auth.js';
+    requiereSesion();
+    const id = new URLSearchParams(window.location.search).get('id');
+    const calificacionesDiv = document.getElementById('calificacionesMateria');
+    const disponibilidadDiv = document.getElementById('disponibilidadProfesor');
+    if (id) {
+      Promise.all([getMaterias(), getProfesor(id)]).then(([materias, profesor]) => {
+        const actuales = new Map((profesor.calificaciones || []).map((item) => [String(item.materiaId), item.calificacion]));
+        calificacionesDiv.replaceChildren();
+        for (const materia of materias) {
+          const fila = document.createElement('label');
+          fila.className = 'w3-block w3-margin-bottom';
+          const texto = document.createElement('span');
+          texto.textContent = `${materia.clave} — ${materia.nombre}: `;
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.min = '0';
+          input.max = '10';
+          input.step = '0.1';
+          input.className = 'w3-input w3-border w3-right';
+          input.style.maxWidth = '120px';
+          input.dataset.materiaId = String(materia.id);
+          input.value = actuales.has(String(materia.id)) ? String(actuales.get(String(materia.id))) : '';
+          fila.append(texto, input);
+          if (actuales.has(String(materia.id))) {
+            const quitar = document.createElement('button');
+            quitar.type = 'button';
+            quitar.className = 'w3-button w3-red w3-round w3-margin-left';
+            quitar.textContent = 'Eliminar relación';
+            quitar.addEventListener('click', async () => {
+              if (!window.confirm(`¿Eliminar la calificación de ${materia.nombre} para este profesor?`)) return;
+              try {
+                await eliminarCalificacionProfesor(id, materia.id);
+                input.value = '';
+                quitar.remove();
+              } catch (error) {
+                mostrarError(error.message);
+              }
+            });
+            fila.append(quitar);
+          }
+          calificacionesDiv.append(fila);
+        }
+        disponibilidadDiv.replaceChildren();
+        const disponibles = new Map(
+          (profesor.disponibilidad || []).map((item) =>
+            [`${item.dia}|${item.horaInicio}|${item.horaFin}`, Number(item.disponible) === 1])
+        );
+        for (const dia of ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']) {
+          const bloque = document.createElement('div');
+          bloque.className = 'w3-margin-bottom';
+          const titulo = document.createElement('b');
+          titulo.textContent = `${dia}: `;
+          bloque.append(titulo);
+          for (const [inicio, fin] of [['07:00','09:00'],['09:00','11:00'],['11:00','13:00'],['08:00','09:00'],['10:00','11:00'],['12:00','13:00']]) {
+            const clave = `${dia}|${inicio}|${fin}`;
+            if (inicio === '08:00' && dia !== 'Viernes') continue;
+            if (inicio === '10:00' && dia !== 'Viernes') continue;
+            if (inicio === '12:00' && dia !== 'Viernes') continue;
+            const label = document.createElement('label');
+            label.className = 'w3-margin-right';
+            const check = document.createElement('input');
+            check.type = 'checkbox';
+            check.className = 'w3-check';
+            check.dataset.dia = dia;
+            check.dataset.inicio = inicio;
+            check.dataset.fin = fin;
+            check.checked = disponibles.has(clave) ? disponibles.get(clave) : true;
+            const texto = document.createElement('span');
+            texto.textContent = ` ${inicio}–${fin}`;
+            label.append(check, texto);
+            bloque.append(label);
+          }
+          disponibilidadDiv.append(bloque);
+        }
+      }).catch((error) => {
+        calificacionesDiv.textContent = error.message;
+        disponibilidadDiv.textContent = error.message;
+      });
+
+      window.guardarDatosAcademicos = async (profesorId) => {
+        const calificaciones = Array.from(calificacionesDiv.querySelectorAll('input')).map((input) => ({
+          materiaId: Number(input.dataset.materiaId),
+          calificacion: Number(input.value)
+        })).filter((item, index) => {
+          const input = calificacionesDiv.querySelectorAll('input')[index];
+          return input.value.trim() !== '' && Number.isFinite(item.calificacion) && inputVisible(item.calificacion);
+        });
+        const disponibilidad = Array.from(disponibilidadDiv.querySelectorAll('input[type="checkbox"]')).map((check) => ({
+          dia: check.dataset.dia,
+          horaInicio: check.dataset.inicio,
+          horaFin: check.dataset.fin,
+          disponible: check.checked
+        }));
+        try {
+          await actualizarCalificacionesProfesor(profesorId, calificaciones);
+          await actualizarDisponibilidadProfesor(profesorId, disponibilidad);
+        } catch (error) {
+          mostrarError(error.message);
+          throw error;
+        }
+      };
+    }
+    function inputVisible(valor) { return valor >= 0 && valor <= 10; }
   </script>
 </body>
 </html>

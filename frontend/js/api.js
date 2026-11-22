@@ -32,6 +32,39 @@ export async function getMaterias() {
   return solicitarCatalogo('/materias', 'GET', undefined, 'Error al obtener las materias');
 }
 
+export async function getPeriodos() {
+  return solicitarCatalogo('/periodos', 'GET', undefined, 'Error al obtener los periodos');
+}
+export async function crearPeriodo(data) {
+  return solicitarCatalogo('/periodos', 'POST', data, 'Error al crear el periodo');
+}
+export async function actualizarPeriodo(id, data) {
+  return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}`, 'PUT', data, 'Error al actualizar el periodo');
+}
+export async function getConflictosPeriodo(id) {
+  return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/conflictos`, 'GET', undefined, 'Error al obtener conflictos');
+}
+export async function getPatronesMateria(materiaId, horarioBaseId) {
+  return solicitarCatalogo(`/materias/${encodeURIComponent(materiaId)}/patrones-horarios?horarioBaseId=${encodeURIComponent(horarioBaseId)}`, 'GET', undefined, 'Error al generar el horario');
+}
+export async function getProfesoresRecomendados(materiaId, periodoId, horarioIds) {
+  const ids = horarioIds.map((id) => encodeURIComponent(id)).join(',');
+  return solicitarCatalogo(`/materias/${encodeURIComponent(materiaId)}/profesores-recomendados?periodoId=${encodeURIComponent(periodoId)}&horarioIds=${ids}`, 'GET', undefined, 'Error al obtener profesores');
+}
+export async function getSalonesDisponibles(materiaId, grupoId, horarioIds) {
+  const ids = horarioIds.map((id) => encodeURIComponent(id)).join(',');
+  return solicitarCatalogo(`/salones/disponibles?materiaId=${encodeURIComponent(materiaId)}&grupoId=${encodeURIComponent(grupoId)}&horarioIds=${ids}`, 'GET', undefined, 'Error al obtener salones');
+}
+export async function actualizarCalificacionesProfesor(id, calificaciones) {
+  return solicitarCatalogo(`/profesores/${encodeURIComponent(id)}/calificaciones`, 'PUT', { calificaciones }, 'Error al actualizar calificaciones');
+}
+export async function eliminarCalificacionProfesor(id, materiaId) {
+  return solicitarCatalogo(`/profesores/${encodeURIComponent(id)}/calificaciones/${encodeURIComponent(materiaId)}`, 'DELETE', undefined, 'Error al eliminar la relación profesor-materia');
+}
+export async function actualizarDisponibilidadProfesor(id, disponibilidad) {
+  return solicitarCatalogo(`/profesores/${encodeURIComponent(id)}/disponibilidad`, 'PUT', { disponibilidad }, 'Error al actualizar disponibilidad');
+}
+
 export async function getMateria(id) {
   return solicitarCatalogo(`/materias/${encodeURIComponent(id)}`, 'GET', undefined, 'Error al obtener la materia');
 }

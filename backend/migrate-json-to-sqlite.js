@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import getDatabase from './database.js';
 import { seedLegacyMaterias } from './migrations/seed_legacy_materias.js';
 import { seedDemoCatalogos } from './migrations/seed_demo_catalogos.js';
+import { seedApoyoAsignacion } from './migrations/seed_apoyo_asignacion.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +26,7 @@ async function runMigration() {
     console.log(`La migración '${MIGRATION_NAME}' ya fue ejecutada. No es necesario repetirla.`);
     seedLegacyMaterias(db);
     seedDemoCatalogos(db);
+    seedApoyoAsignacion(db);
     return;
   }
 
@@ -130,6 +132,7 @@ async function runMigration() {
   console.log(`Base SQLite creada en: ${DB_PATH}`);
   seedLegacyMaterias(db);
   seedDemoCatalogos(db);
+  seedApoyoAsignacion(db);
 }
 
 runMigration().catch((error) => {
