@@ -1,0 +1,92 @@
+name: NiceProject CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: niceproject-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate NiceProject
+    runs-on: ubuntu-latest
+
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure temporary SQLite database
+        shell: bash
+        run: echo "NICEPROJECT_DB_PATH=$RUNNER_TEMP/niceproject-ci.db" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run migration twice
+        working-directory: backend
+        run: |
+          npm run migrate
+          npm run migrate
+
+      - name: Run automated tests
+        working-directory: backend
+        run: node --test
+
+      - name: Check backend JavaScript syntax
+        run: |
+          find backend \
+            -path "backend/node_modules" -prune -o \
+            -type f -name "*.js" \
+            -exec node --check {} \;
+
+      - name: Check frontend JavaScript syntax
+        run: |
+          find frontend/js \
+            -type f -name "*.js" \
+            -exec node --check {} \;
+
+      - name: Check frontend server syntax
+        run: node --check frontend-server.js
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Verify SQLite database is ignored
+        run: git check-ignore -q backend/niceproject.db
+
+      - name: Verify SQLite database is not tracked
+        shell: bash
+        run: |
+          if git ls-files --error-unmatch backend/niceproject.db >/dev/null 2>&1; then
+            echo "ERROR: backend/niceproject.db is tracked by Git."
+            exit 1
+          fi
+
+      - name: Verify clean repository
+        shell: bash
+        run: |
+          STATUS="$(git status --short)"
+          if [ -n "$STATUS" ]; then
+            echo "Unexpected repository changes:"
+            echo "$STATUS"
+            exit 1
+          fi
