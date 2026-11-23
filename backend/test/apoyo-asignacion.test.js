@@ -187,3 +187,60 @@ test('resume advertencias de carga con curso, materia y grupo', () => {
     }
   } finally { db.close(); }
 });
+
+test('cinco horas admite bloque 17 a 19 con viernes 18 a 19', () => {
+  const db = createDatabase(':memory:');
+
+  try {
+    fixture(db);
+
+    const materia = db.prepare(
+      "SELECT id FROM materias WHERE nombre='Matemáticas'"
+    ).get();
+
+    db.prepare(
+      'UPDATE materias SET horasSemanales=5 WHERE id=?'
+    ).run(materia.id);
+
+    for (const [dia, inicio, fin] of [
+      ['Lunes', '17:00', '19:00'],
+      ['Miércoles', '17:00', '19:00'],
+      ['Viernes', '18:00', '19:00']
+    ]) {
+      db.prepare(`
+        INSERT OR IGNORE INTO franjas_horarias
+          (dia, horaInicio, horaFin)
+        VALUES (?, ?, ?)
+      `).run(dia, inicio, fin);
+    }
+
+    const lunes17 = db.prepare(`
+      SELECT id
+      FROM franjas_horarias
+      WHERE dia='Lunes'
+        AND horaInicio='17:00'
+        AND horaFin='19:00'
+    `).get();
+
+    const resultado = generarPatronAcademico(
+      db,
+      materia.id,
+      lunes17.id
+    );
+
+    assert.equal(resultado.ok, true);
+
+    assert.deepEqual(
+      resultado.horarios.map(
+        (item) => [item.dia, item.horaInicio, item.horaFin]
+      ),
+      [
+        ['Lunes', '17:00', '19:00'],
+        ['Miércoles', '17:00', '19:00'],
+        ['Viernes', '18:00', '19:00']
+      ]
+    );
+  } finally {
+    db.close();
+  }
+});

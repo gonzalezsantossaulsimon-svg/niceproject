@@ -52,7 +52,7 @@ function obtenerConteos(db) {
   };
 }
 
-test('siembra 5 grupos, 6 salones y 15 franjas sin duplicar ni alterar claves existentes', () => {
+test('siembra 5 grupos, 6 salones y 30 franjas sin duplicar ni alterar claves existentes', () => {
   const db = createDatabase(':memory:');
 
   try {
@@ -77,7 +77,7 @@ test('siembra 5 grupos, 6 salones y 15 franjas sin duplicar ni alterar claves ex
       academias: 4,
       grupos: 5,
       salones: 6,
-      franjas: 15
+      franjas: 30
     });
     assert.deepEqual(
       db.prepare('SELECT nombre, cantidadAlumnos FROM grupos WHERE clave = ?').get('GRP-01'),
@@ -127,6 +127,16 @@ test('npm run migrate siembra los catálogos y las rutas API permiten validar GR
       encoding: 'utf8'
     });
     assert.equal(migracion.status, 0, migracion.stderr || migracion.stdout);
+
+    const dbVerificacion = new Database(databasePath);
+    try {
+      assert.equal(
+        dbVerificacion.prepare('SELECT COUNT(*) AS n FROM franjas_horarias').get().n,
+        36
+      );
+    } finally {
+      dbVerificacion.close();
+    }
   }
 
   const puerto = await obtenerPuertoDisponible();
@@ -160,7 +170,7 @@ test('npm run migrate siembra los catálogos y las rutas API permiten validar GR
 
     assert.equal(grupos.length, 5);
     assert.equal(salones.length, 6);
-    assert.equal(franjas.length, 18);
+    assert.equal(franjas.length, 36);
     assert.equal(materias.length, 8);
     assert.equal(profesores.length, 16);
     assert.equal(academias.length, 4);
@@ -194,11 +204,17 @@ test('npm run migrate siembra los catálogos y las rutas API permiten validar GR
       ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'].flatMap((dia) => [
         [dia, '07:00', '09:00'],
         [dia, '09:00', '11:00'],
-        [dia, '11:00', '13:00']
+        [dia, '11:00', '13:00'],
+        [dia, '13:00', '15:00'],
+        [dia, '15:00', '17:00'],
+        [dia, '17:00', '19:00']
       ]).concat([
         ['Viernes', '08:00', '09:00'],
         ['Viernes', '10:00', '11:00'],
-        ['Viernes', '12:00', '13:00']
+        ['Viernes', '12:00', '13:00'],
+        ['Viernes', '14:00', '15:00'],
+        ['Viernes', '16:00', '17:00'],
+        ['Viernes', '18:00', '19:00']
       ]).sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]))
     );
 

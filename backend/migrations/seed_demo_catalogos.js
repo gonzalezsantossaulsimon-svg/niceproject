@@ -21,7 +21,10 @@ const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 const HORAS = [
   ['07:00', '09:00'],
   ['09:00', '11:00'],
-  ['11:00', '13:00']
+  ['11:00', '13:00'],
+  ['13:00', '15:00'],
+  ['15:00', '17:00'],
+  ['17:00', '19:00']
 ];
 const FRANJAS_HORARIAS = DIAS.flatMap((dia) => HORAS.map(([horaInicio, horaFin]) => ({
   dia,
