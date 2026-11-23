@@ -21,12 +21,14 @@ jobs:
     name: Validate NiceProject
     runs-on: ubuntu-latest
 
-    env:
-      NICEPROJECT_DB_PATH: ${{ runner.temp }}/niceproject-ci.db
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Configure temporary SQLite database
+        shell: bash
+        run: echo "NICEPROJECT_DB_PATH=$RUNNER_TEMP/niceproject-ci.db" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -88,4 +90,3 @@ jobs:
             echo "$STATUS"
             exit 1
           fi
-          
