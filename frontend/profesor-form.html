@@ -336,11 +336,27 @@
           const titulo = document.createElement('b');
           titulo.textContent = `${dia}: `;
           bloque.append(titulo);
-          for (const [inicio, fin] of [['07:00','09:00'],['09:00','11:00'],['11:00','13:00'],['08:00','09:00'],['10:00','11:00'],['12:00','13:00']]) {
+          for (const [inicio, fin] of [
+            ['07:00','09:00'],
+            ['09:00','11:00'],
+            ['11:00','13:00'],
+            ['13:00','15:00'],
+            ['15:00','17:00'],
+            ['17:00','19:00'],
+            ['08:00','09:00'],
+            ['10:00','11:00'],
+            ['12:00','13:00'],
+            ['14:00','15:00'],
+            ['16:00','17:00'],
+            ['18:00','19:00']
+          ]) {
             const clave = `${dia}|${inicio}|${fin}`;
             if (inicio === '08:00' && dia !== 'Viernes') continue;
             if (inicio === '10:00' && dia !== 'Viernes') continue;
             if (inicio === '12:00' && dia !== 'Viernes') continue;
+            if (inicio === '14:00' && dia !== 'Viernes') continue;
+            if (inicio === '16:00' && dia !== 'Viernes') continue;
+            if (inicio === '18:00' && dia !== 'Viernes') continue;
             const label = document.createElement('label');
             label.className = 'w3-margin-right';
             const check = document.createElement('input');

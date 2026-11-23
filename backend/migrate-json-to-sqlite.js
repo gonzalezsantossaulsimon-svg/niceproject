@@ -5,6 +5,7 @@ import getDatabase from './database.js';
 import { seedLegacyMaterias } from './migrations/seed_legacy_materias.js';
 import { seedDemoCatalogos } from './migrations/seed_demo_catalogos.js';
 import { seedApoyoAsignacion } from './migrations/seed_apoyo_asignacion.js';
+import { seedFranjasHorariasV2 } from './migrations/seed_franjas_horarias_v2.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +28,7 @@ async function runMigration() {
     seedLegacyMaterias(db);
     seedDemoCatalogos(db);
     seedApoyoAsignacion(db);
+    seedFranjasHorariasV2(db);
     return;
   }
 
@@ -133,6 +135,7 @@ async function runMigration() {
   seedLegacyMaterias(db);
   seedDemoCatalogos(db);
   seedApoyoAsignacion(db);
+  seedFranjasHorariasV2(db);
 }
 
 runMigration().catch((error) => {
