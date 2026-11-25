@@ -245,6 +245,32 @@ test('HTTP smoke, CRUD curso, restricciones duras y publicación en DB aislada',
   for (const key of ['periodo','materia','profesor','grupo','salon']) assert.ok(readCourse.data[key],key);
   assert.equal(readCourse.data.periodo.id,periodId);
   assert.deepEqual(readCourse.data.horarioIds,ids);
+  await t.test('los selectores de edición excluyen el propio curso y respetan los demás del periodo', async () => {
+    const rutaProfesores = `/materias/${matterId}/profesores-recomendados?periodoId=${periodId}&horarioIds=${ids.join(',')}`;
+    const rutaAulas = `/salones/disponibles?materiaId=${matterId}&grupoId=${groupIds[0]}&horarioIds=${ids.join(',')}`;
+    const segundo = await request('POST', '/cursos', {
+      ...coursePayload, profesorId: profIds[1], grupoId: groupIds[1], salonId: roomIds[3]
+    });
+    assert.equal(segundo.status, 201);
+    assert.deepEqual((await request('GET', rutaAulas)).data, []);
+    const editar = `&cursoId=${courseId}`;
+    const profesoresEdicion = (await request('GET', rutaProfesores + editar)).data;
+    assert.equal(profesoresEdicion.find(p => p.id === profIds[0]).cargaActual, 0);
+    assert.equal(profesoresEdicion.find(p => p.id === profIds[0]).compatible, true);
+    assert.equal(profesoresEdicion.find(p => p.id === profIds[1]).compatible, false);
+    assert.equal((await request('GET', rutaProfesores)).data.find(p => p.id === profIds[0]).compatible, false);
+    const aulasEdicion = (await request('GET', rutaAulas + `&periodoId=${periodId}` + editar)).data;
+    assert.deepEqual(aulasEdicion.map(a => a.id), [roomIds[0]]);
+    const otroPeriodo = await request('POST', '/periodos', { clave: 'SEL-2', nombre: 'Otro periodo del selector' });
+    assert.equal(otroPeriodo.status, 201);
+    const aulasOtro = (await request('GET', rutaAulas + `&periodoId=${otroPeriodo.data.id}`)).data;
+    assert.deepEqual(aulasOtro.map(a => a.id), [roomIds[0], roomIds[3]]);
+    assert.equal((await request('GET', rutaAulas + '&periodoId=abc')).status, 400);
+    for (const ruta of [rutaProfesores, rutaAulas]) {
+      assert.equal((await request('GET', ruta + '&cursoId=0')).status, 400);
+    }
+    assert.equal((await request('DELETE', `/cursos/${segundo.data.id}`)).status, 200);
+  });
   assert.equal((await request('PUT',`/cursos/${courseId}`,coursePayload)).status,200);
   assert.equal((await request('DELETE',`/cursos/${courseId}`)).status,200);
   const dbAfterDelete = createDatabase(dbPath);
