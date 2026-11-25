@@ -47,6 +47,9 @@ export async function getConflictosPeriodo(id) {
 export async function getPlanificacionPeriodo(id) {
   return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/planificacion`, 'GET', undefined, 'Error al obtener la planificación');
 }
+export async function generarPlanificacionGlobal(id, opciones = {}) {
+  return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/planificacion-global`, 'POST', opciones, 'Error al generar la planificación global');
+}
 export async function getNecesidadesPeriodo(id) {
   return solicitarCatalogo(`/periodos/${encodeURIComponent(id)}/necesidades-planificacion`, 'GET', undefined, 'Error al obtener necesidades');
 }

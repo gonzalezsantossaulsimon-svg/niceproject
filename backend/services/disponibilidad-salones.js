@@ -1,4 +1,4 @@
-export function listarSalonesDisponibles(db, materiaId, grupoId, horarioIds, cursoIdActual = null) {
+export function listarSalonesDisponibles(db, materiaId, grupoId, horarioIds, cursoIdActual = null, periodoId = null) {
   const materia = db.prepare('SELECT id, horasSemanales FROM materias WHERE id = ?').get(materiaId);
   const grupo = db.prepare('SELECT id, cantidadAlumnos FROM grupos WHERE id = ?').get(grupoId);
   if (!materia || !grupo) return [];
@@ -31,7 +31,8 @@ export function listarSalonesDisponibles(db, materiaId, grupoId, horarioIds, cur
         JOIN franjas_horarias fh ON fh.id = ch.horarioId
         WHERE c.salonId = ? AND c.id != ? AND fh.dia = ?
           AND fh.horaInicio < ? AND fh.horaFin > ?
-      `).get(salon.id, cursoIdActual ?? -1, franja.dia, franja.horaFin, franja.horaInicio);
+          AND (? IS NULL OR c.periodoId = ?)
+      `).get(salon.id, cursoIdActual ?? -1, franja.dia, franja.horaFin, franja.horaInicio, periodoId, periodoId);
       if (ocupado) bloqueos.push(`Ocupado el ${franja.dia} ${franja.horaInicio}–${franja.horaFin}`);
       const disponible = db.prepare(`
         SELECT disponible FROM salon_disponibilidad

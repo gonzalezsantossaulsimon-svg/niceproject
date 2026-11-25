@@ -7,6 +7,7 @@ import { listarSalonesDisponibles } from './services/disponibilidad-salones.js';
 import { resumirPeriodo, validarCursoAcademico } from './services/validacion-periodo.js';
 import { resumirPlanificacionPeriodo } from './services/planificacion-periodo.js';
 import { generarPropuestasPlanificacion } from './services/propuestas-planificacion.js';
+import { generarPlanificacionGlobal } from './services/planificacion-global.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -2242,6 +2243,38 @@ app.get('/api/periodos/:id/planificacion', (req, res) => {
   const resumen = resumirPlanificacionPeriodo(db, periodoId);
   if (!resumen) return sendError(res, 404, 'Periodo no encontrado');
   return res.json(resumen);
+});
+
+app.post('/api/periodos/:id/planificacion-global', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const periodoId = Number(req.params.id);
+  if (!/^\d+$/.test(req.params.id) || !Number.isSafeInteger(periodoId) || periodoId < 1) {
+    return sendError(res, 400, 'ID de periodo inválido');
+  }
+  const body = req.body === undefined ? {} : req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => !['limite', 'modo'].includes(k))) {
+    return sendError(res, 400, 'Solo se admiten los parametros limite y modo');
+  }
+  const { limite, modo } = body;
+  if (modo !== undefined && !['COBERTURA', 'ABC'].includes(modo)) {
+    return sendError(res, 400, 'Modo debe ser COBERTURA o ABC');
+  }
+  if (limite !== undefined && (!Number.isSafeInteger(limite) || limite < 1 || limite > 100000)) {
+    return sendError(res, 400, 'El límite debe ser un entero entre 1 y 100000');
+  }
+  try {
+    const resultado = generarPlanificacionGlobal(db, periodoId, { limite, modo });
+    if (!resultado.ok) {
+      const status = resultado.error === 'PERIODO_NO_EXISTE' ? 404
+        : resultado.error === 'PERIODO_NO_PLANIFICABLE' ? 409
+          : resultado.error === 'LIMITE_BUSQUEDA' ? 400 : 500;
+      return res.status(status).json({ error: resultado.mensaje, codigo: resultado.error });
+    }
+    return res.json(resultado);
+  } catch (error) {
+    console.error(error);
+    return sendError(res, 500, 'Error al generar la planificación global');
+  }
 });
 
 app.post('/api/periodos/:id/propuestas-planificacion', (req, res) => {

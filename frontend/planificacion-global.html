@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planificación global | NiceProject</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="./css/horario-semanal.css">
+  <link rel="stylesheet" href="./css/planificacion-global.css">
+</head>
+<body class="w3-light-grey">
+  <nav class="w3-bar w3-indigo w3-padding" aria-label="Navegación principal">
+    <span class="w3-bar-item w3-large">NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="periodos.html" class="w3-bar-item w3-button w3-right">Periodos</a>
+    <a id="horarioReal" href="horario-semanal.html" class="w3-bar-item w3-button w3-right">Horario registrado</a>
+  </nav>
+  <main class="hs-main pg-main">
+    <header class="hs-header"><div><p class="hs-kicker">PLANIFICACIÓN ACADÉMICA · SIMULACIÓN</p><h1>Planificación global</h1><p>Genera y compara propuestas para las necesidades pendientes de un periodo.</p></div></header>
+    <section class="hs-panel hs-filtros" aria-label="Configuración de la simulación">
+      <label>Periodo académico<select id="periodo" class="w3-select w3-border" disabled></select></label>
+      <button type="button" id="generar" class="w3-button w3-indigo w3-round" disabled>Generar planes A, B y C</button>
+      <a id="necesidades" href="planificacion-periodo.html" class="w3-button w3-border w3-round">Gestionar necesidades</a>
+    </section>
+    <p class="pg-nota">Solo simulación. No se crean cursos ni se modifica el horario registrado. Los resultados corresponden al momento de generación.</p>
+    <p id="mensaje" role="status" aria-live="polite">Cargando periodos…</p>
+    <button id="reintentar" type="button" hidden class="w3-button w3-border w3-round">Recargar periodos</button>
+    <section id="resultado" hidden>
+      <div id="resumen" class="hs-resumen"></div>
+      <section class="pg-panel"><h2>Comparar alternativas</h2><p>La cobertura tiene prioridad en los tres planes. Pueden coincidir si las restricciones lo requieren.</p>
+        <div class="pg-scroll"><table class="pg-tabla" id="comparacion"></table></div>
+        <p class="pg-ayuda">Carga RMS: índice de concentración de carga relativa, no promedio simple. Huecos: minutos internos acumulados por profesor y grupo, incluyendo asignaciones existentes. Menor es mejor en ambos.</p>
+        <div id="planes" class="pg-planes" role="group" aria-label="Seleccionar plan"></div>
+      </section>
+      <section class="pg-panel"><h2 id="tituloPlan"></h2><p id="criterio"></p><p id="busqueda" class="pg-nota" role="status"></p>
+        <h3>Nuevas asignaciones propuestas</h3><div class="pg-scroll"><table class="pg-tabla" id="asignaciones"></table></div>
+        <h3>Necesidades sin asignar</h3><div id="sinAsignar"></div>
+        <h3>Conflictos de cursos existentes</h3><div id="conflictos"></div>
+      </section>
+      <section class="pg-panel"><h2>Vista semanal de propuestas</h2><p>Solo se muestran las nuevas asignaciones del plan seleccionado; no es el horario oficial ni incluye los cursos ya registrados.</p>
+        <div class="pg-filtros"><label>Vista <select id="vista" class="w3-select w3-border"><option value="">Todas las propuestas</option><option value="profesorId">Por profesor</option><option value="grupoId">Por grupo</option><option value="salonId">Por salón</option></select></label><label id="recursoLabel" hidden>Recurso <select id="recurso" class="w3-select w3-border"></select></label></div>
+        <p id="avisoHorario" role="status"></p><div class="hs-scroll" tabindex="0" aria-label="Vista previa semanal desplazable"><div id="calendario" class="hs-calendario"></div></div>
+      </section>
+    </section>
+  </main>
+  <dialog id="detalle" class="hs-dialog" aria-labelledby="detalleTitulo"><div class="hs-dialog-header"><h2 id="detalleTitulo"></h2><form method="dialog"><button class="w3-button w3-border w3-round">Cerrar</button></form></div><div id="detalleContenido"></div></dialog>
+  <script type="module" src="./js/planificacion-global.js"></script>
+</body>
+</html>

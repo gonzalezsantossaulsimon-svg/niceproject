@@ -15,6 +15,7 @@ const routeDefinitions = [
   ["put", "/api/necesidades-planificacion/:id"],
   ["delete", "/api/necesidades-planificacion/:id"],
   ["get", "/api/periodos/:id/planificacion"],
+  ["post", "/api/periodos/:id/planificacion-global"],
   ["post", "/api/periodos/:id/propuestas-planificacion"],
   ["post", "/api/periodos/:id/aplicar-propuesta"],
   ["get", "/api/materias/:id/patrones-horarios"],

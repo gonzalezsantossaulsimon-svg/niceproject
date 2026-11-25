@@ -1,0 +1,21 @@
+.pg-main { max-width: 1500px; }
+.pg-panel { background: white; border: 1px solid #d9dfe8; border-radius: 10px; padding: 18px; margin-top: 16px; }
+.pg-panel h2 { font-size: 22px; margin-top: 0; font-weight: 650; }
+.pg-panel h3 { font-size: 17px; font-weight: 600; margin-top: 22px; }
+.pg-nota { background: #eef1fa; border-left: 4px solid #3f51b5; padding: 12px; }
+.pg-ayuda { font-size: 13px; color: #526174; }
+.pg-scroll { overflow: auto; }
+.pg-tabla { width: 100%; border-collapse: collapse; text-align: left; }
+.pg-tabla th, .pg-tabla td { padding: 10px; border-bottom: 1px solid #e2e7ef; vertical-align: top; min-width: 95px; }
+.pg-tabla th { background: #eef1fa; }
+.pg-tabla td { overflow-wrap: anywhere; }
+.pg-planes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.pg-planes button { border: 1px solid #aab7d0; background: white; color: #283a67; border-radius: 6px; padding: 10px 16px; cursor: pointer; }
+.pg-planes button[aria-pressed="true"] { background: #3f51b5; color: white; }
+.pg-filtros { display: flex; gap: 16px; flex-wrap: wrap; }
+.pg-filtros label { flex: 1 1 200px; }
+.pg-lista { padding: 0 0 0 22px; }
+.pg-lista li { margin: 8px 0; }
+.pg-panel .hs-calendario { --dias: 5; --minimo: 974px; }
+.pg-error { color: #a51d2d; font-weight: 600; }
+@media (max-width: 600px) { .pg-panel { padding: 12px; } }
