@@ -550,7 +550,11 @@ app.get('/api/salones/disponibles', (req, res) => {
   const grupoId = Number(req.query.grupoId);
   const ids = String(req.query.horarioIds || '').split(',').map(Number).filter((id) => id > 0);
   if (!materiaId || !grupoId || !ids.length) return sendError(res, 400, 'materiaId, grupoId y horarioIds son obligatorios');
-  return res.json(listarSalonesDisponibles(db, materiaId, grupoId, ids));
+  const periodoId = parseCatalogId(req.query.periodoId);
+  const cursoId = parseCatalogId(req.query.cursoId);
+  if (req.query.periodoId !== undefined && !periodoId) return sendError(res, 400, 'Periodo inválido');
+  if (req.query.cursoId !== undefined && !cursoId) return sendError(res, 400, 'Curso inválido');
+  return res.json(listarSalonesDisponibles(db, materiaId, grupoId, ids, cursoId, periodoId));
 });
 
 registerCatalogRoutes({
@@ -2369,7 +2373,9 @@ app.get('/api/materias/:id/profesores-recomendados', (req, res) => {
   const periodoId = Number(req.query.periodoId) || null;
   const ids = String(req.query.horarioIds || '').split(',').map(Number).filter((id) => id > 0);
   if (!ids.length) return sendError(res, 400, 'horarioIds es obligatorio');
-  return res.json(recomendarProfesores(db, materiaId, periodoId, ids));
+  const cursoId = parseCatalogId(req.query.cursoId);
+  if (req.query.cursoId !== undefined && !cursoId) return sendError(res, 400, 'Curso inválido');
+  return res.json(recomendarProfesores(db, materiaId, periodoId, ids, cursoId));
 });
 
 app.get('/api/profesores/:id/calificaciones', (req, res) => {

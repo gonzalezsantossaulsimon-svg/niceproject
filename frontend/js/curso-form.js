@@ -11,6 +11,7 @@ import {
   getSalonesDisponibles
 } from './api.js';
 import { requiereSesion } from './auth.js';
+import { crearSelectorCurso } from './selector-curso.mjs';
 
 const sesion = requiereSesion();
 if (sesion) inicializarFormularioCurso();
@@ -37,15 +38,21 @@ async function inicializarFormularioCurso() {
   const grupoSelect = document.getElementById('grupoId');
   const baseSelect = document.getElementById('horarioBaseId');
   const horarioGenerado = document.getElementById('horarioGenerado');
-  const profesoresDiv = document.getElementById('profesores');
-  const salonesDiv = document.getElementById('salones');
+  const profesores = crearSelectorCurso(document.getElementById('profesores'), 'profesor', actualizarResumen);
+  const aulas = crearSelectorCurso(document.getElementById('salones'), 'aula', actualizarResumen);
+  const estadoSeleccion = document.getElementById('estadoSeleccion');
+  const reintentar = document.getElementById('reintentar');
   const resumen = document.getElementById('resumen');
   const id = new URLSearchParams(window.location.search).get('id');
 
   let catalogos = { periodos: [], materias: [], grupos: [], horarios: [] };
   let patron = null;
-  let profesorSeleccionado = null;
-  let salonSeleccionado = null;
+  let seleccionInicial = null;
+  let estadoCurso = 'BORRADOR';
+  let periodoProtegido = false;
+  let consulta = 0;
+  let consultando = false;
+  let guardando = false;
 
   function cargarSelect(select, items, etiqueta, textoItem) {
     select.replaceChildren(opcion('', etiqueta));
@@ -83,26 +90,20 @@ async function inicializarFormularioCurso() {
   }
 
   function cargarBases() {
+    const anterior = baseSelect.value;
     baseSelect.replaceChildren(opcion('', 'Selecciona un horario base'));
     const materia = materiaActual();
     if (!materia) return;
     const horas = Number(materia.horasSemanales);
     const basesPermitidas = horas === 6 ? ['Lunes'] : ['Lunes', 'Martes'];
-    const duracion = horas === 4 ? 120 : horas === 5 ? 120 : 120;
     for (const dia of basesPermitidas) {
       for (const franja of catalogos.horarios) {
-        if (franja.dia === dia && (Number(franja.horaFin.slice(0, 2)) - Number(franja.horaInicio.slice(0, 2))) === duracion / 60) {
+        if (franja.dia === dia && (Number(franja.horaFin.slice(0, 2)) - Number(franja.horaInicio.slice(0, 2))) === 2) {
           baseSelect.append(opcion(franja.id, `${dia} ${franja.horaInicio}–${franja.horaFin}`));
         }
       }
     }
-  }
-
-  function limpiarRecomendaciones() {
-    profesoresDiv.replaceChildren();
-    salonesDiv.replaceChildren();
-    profesorSeleccionado = null;
-    salonSeleccionado = null;
+    if (Array.from(baseSelect.options).some(item => item.value === anterior)) baseSelect.value = anterior;
   }
 
   function lineaResumen(etiqueta, valor) {
@@ -122,157 +123,93 @@ async function inicializarFormularioCurso() {
     lineaResumen('Materia', materia ? `${materia.clave} — ${materia.nombre}` : 'Sin seleccionar');
     lineaResumen('Carga', materia ? `${materia.horasSemanales} horas semanales` : 'Sin seleccionar');
     lineaResumen('Grupo', grupo ? `${grupo.nombre} — ${grupo.cantidadAlumnos} alumnos` : 'Sin seleccionar');
+    const profesorSeleccionado = profesores.actual;
+    const salonSeleccionado = aulas.actual;
     lineaResumen('Profesor', profesorSeleccionado ? `${profesorSeleccionado.nombre} — ${profesorSeleccionado.numeroEmpleado} — ${profesorSeleccionado.calificacionMateria}/10` : 'Sin seleccionar');
-    lineaResumen('Salón', salonSeleccionado ? `${salonSeleccionado.clave} — capacidad ${salonSeleccionado.capacidad}` : 'Sin seleccionar');
-    lineaResumen('Estado', 'BORRADOR');
+    lineaResumen('Aula', salonSeleccionado ? `${salonSeleccionado.clave} — capacidad ${salonSeleccionado.capacidad}` : 'Sin seleccionar');
+    lineaResumen('Estado', estadoCurso);
 
-    const valido = periodo && materia && grupo && patron?.ok && profesorSeleccionado?.compatible
-      && salonSeleccionado?.compatible !== false;
-    guardar.disabled = !valido;
+    guardar.disabled = !puedeGuardar();
+    if (periodoProtegido) estadoSeleccion.textContent = 'Este curso pertenece a un periodo de solo lectura.';
+    else if (consultando) estadoSeleccion.textContent = 'Consultando profesores y aulas disponibles…';
+    else if (!reintentar.hidden) estadoSeleccion.textContent = 'Vuelve a consultar la disponibilidad para continuar.';
+    else if (!patron) estadoSeleccion.textContent = 'Selecciona periodo, materia, grupo y horario base.';
+    else if (!profesorSeleccionado && !salonSeleccionado) estadoSeleccion.textContent = 'Elige profesor y aula para completar el curso.';
+    else if (!profesorSeleccionado) estadoSeleccion.textContent = 'Falta elegir el profesor.';
+    else if (!salonSeleccionado) estadoSeleccion.textContent = 'Falta elegir el aula.';
+    else estadoSeleccion.textContent = 'Curso listo para guardar.';
   }
 
-  function crearTarjetaProfesor(profesor) {
-    const card = document.createElement('div');
-    card.className = `w3-card w3-white w3-padding w3-margin-bottom ${profesor.compatible ? '' : 'w3-opacity'}`;
-    const titulo = document.createElement('p');
-    titulo.append(document.createTextNode(profesor.clasificacion === 'RECOMENDADO' ? '★ RECOMENDADO — ' : `${profesor.clasificacion} — `));
-    const nombre = document.createElement('strong');
-    nombre.textContent = `${profesor.nombre} (${profesor.numeroEmpleado})`;
-    titulo.append(nombre);
-    card.append(titulo);
-    const datos = [
-      `Calificación en la materia: ${profesor.calificacionMateria.toFixed(1)} / 10`,
-      `Carga: ${profesor.cargaActual} / ${profesor.maxHorasSemanales} h`,
-      `Disponible: ${profesor.compatible ? 'Sí' : 'No'}`,
-      `Conflictos: ${profesor.bloqueos.filter((item) => item.includes('CONFLICTO')).length}`
-    ];
-    for (const dato of datos) {
+  function puedeGuardar() {
+    return !guardando && !periodoProtegido && periodoActual()?.estado === 'BORRADOR'
+      && patron?.ok && profesores.actual && aulas.actual;
+  }
+
+  function mostrarHorario(horario) {
+    const titulo = document.createElement('h3');
+    titulo.className = 'w3-medium';
+    titulo.textContent = 'Horario semanal generado automáticamente';
+    horarioGenerado.append(titulo);
+    for (const franja of horario.horarios) {
       const p = document.createElement('p');
-      p.textContent = dato;
-      card.append(p);
+      p.textContent = `${franja.dia} ${franja.horaInicio}–${franja.horaFin}`;
+      horarioGenerado.append(p);
     }
-    if (profesor.razones.length) {
-      const razones = document.createElement('div');
-      const encabezado = document.createElement('b');
-      encabezado.textContent = '¿Por qué?';
-      razones.append(encabezado);
-      const ul = document.createElement('ul');
-      for (const razon of profesor.razones) {
-        const li = document.createElement('li');
-        li.textContent = razon;
-        ul.append(li);
-      }
-      razones.append(ul);
-      card.append(razones);
-    }
-    if (profesor.compatible) {
-      const boton = document.createElement('button');
-      boton.type = 'button';
-      boton.className = 'w3-button w3-indigo w3-round';
-      boton.textContent = profesorSeleccionado?.id === profesor.id ? 'Profesor seleccionado' : 'Seleccionar profesor';
-      boton.addEventListener('click', () => {
-        profesorSeleccionado = profesor;
-        actualizarResumen();
-        refrescarBotonesProfesores();
-      });
-      card.append(boton);
-    } else {
-      const bloqueo = document.createElement('p');
-      bloqueo.className = 'w3-text-red';
-      bloqueo.textContent = profesor.bloqueos.join('; ');
-      card.append(bloqueo);
-    }
-    return card;
-  }
-
-  function refrescarBotonesProfesores() {
-    Array.from(profesoresDiv.children).forEach((card, index) => {
-      const boton = card.querySelector('button');
-      if (!boton) return;
-      const profesor = window.__candidatosCurso?.[index];
-      if (profesor) boton.textContent = profesorSeleccionado?.id === profesor.id ? 'Profesor seleccionado' : 'Seleccionar profesor';
-    });
+    const total = document.createElement('b');
+    total.textContent = `Total: ${horario.horasSemanales} horas semanales`;
+    horarioGenerado.append(total);
   }
 
   async function recalcular() {
+    const turno = ++consulta;
     const materia = materiaActual();
     const grupo = grupoActual();
-    limpiarRecomendaciones();
-    horarioGenerado.replaceChildren();
+    const periodo = periodoActual();
+    const base = Number(baseSelect.value);
     patron = null;
-    resumen.replaceChildren();
+    profesores.suspender();
+    aulas.suspender();
+    horarioGenerado.replaceChildren();
+    texto(mensaje, '');
+    reintentar.hidden = true;
+    consultando = Boolean(materia && grupo && periodo && base);
     actualizarResumen();
-    if (!materia || !grupo || !baseSelect.value) return;
+    if (!consultando) return;
     try {
-      patron = await getPatronesMateria(materia.id, Number(baseSelect.value));
-      const titulo = document.createElement('h3');
-      titulo.className = 'w3-medium';
-      titulo.textContent = 'Horario semanal generado automáticamente';
-      horarioGenerado.append(titulo);
-      for (const franja of patron.horarios) {
-        const p = document.createElement('p');
-        p.textContent = `${franja.dia} ${franja.horaInicio}–${franja.horaFin}`;
-        horarioGenerado.append(p);
-      }
-      const total = document.createElement('b');
-      total.textContent = `Total: ${patron.horasSemanales} horas semanales`;
-      horarioGenerado.append(total);
-
-      const periodo = periodoActual();
-      if (!periodo) return;
-      const candidatos = await getProfesoresRecomendados(materia.id, periodo.id, patron.horarioIds);
-      window.__candidatosCurso = candidatos;
-      profesoresDiv.replaceChildren();
-      for (const candidato of candidatos) profesoresDiv.append(crearTarjetaProfesor(candidato));
-      if (candidatos.length === 0) {
-        const vacio = document.createElement('p');
-        vacio.textContent = 'No hay profesores calificados para esta materia.';
-        profesoresDiv.append(vacio);
-      }
-
-      const salones = await getSalonesDisponibles(materia.id, grupo.id, patron.horarioIds);
-      window.__salonesCurso = salones;
-      salonesDiv.replaceChildren();
-      for (const salon of salones) {
-        const card = document.createElement('div');
-        card.className = 'w3-card w3-white w3-padding w3-margin-bottom';
-        const nombre = document.createElement('b');
-        nombre.textContent = `★ ${salon.clave} — ${salon.nombre}`;
-        const capacidad = document.createElement('p');
-        capacidad.textContent = `Capacidad: ${salon.capacidad}; Grupo: ${grupo.cantidadAlumnos}`;
-        const caracteristicas = document.createElement('p');
-        caracteristicas.textContent = `Características: ${salon.caracteristicas.join(', ') || 'Ninguna'}; Disponible en todo el horario: Sí`;
-        const boton = document.createElement('button');
-        boton.type = 'button';
-        boton.className = 'w3-button w3-green w3-round';
-        boton.textContent = salonSeleccionado?.id === salon.id ? 'Salón seleccionado' : 'Seleccionar salón';
-        boton.addEventListener('click', () => {
-          salonSeleccionado = salon;
-          actualizarResumen();
-          Array.from(salonesDiv.querySelectorAll('button')).forEach((item) => {
-            item.textContent = item === boton ? 'Salón seleccionado' : 'Seleccionar salón';
-          });
-        });
-        card.append(nombre, capacidad, caracteristicas, boton);
-        salonesDiv.append(card);
-      }
-      if (salones.length === 0) {
-        const vacio = document.createElement('p');
-        vacio.className = 'w3-text-red';
-        vacio.textContent = 'No hay salones compatibles y disponibles para este curso.';
-        salonesDiv.append(vacio);
-      }
+      const horario = await getPatronesMateria(materia.id, base);
+      if (turno !== consulta) return;
+      mostrarHorario(horario);
+      const [candidatos, salones] = await Promise.all([
+        getProfesoresRecomendados(materia.id, periodo.id, horario.horarioIds, id),
+        getSalonesDisponibles(materia.id, grupo.id, horario.horarioIds, periodo.id, id)
+      ]);
+      if (turno !== consulta) return;
+      profesores.cargar(candidatos, seleccionInicial?.profesorId);
+      aulas.cargar(salones, seleccionInicial?.salonId);
+      seleccionInicial = null;
+      patron = horario;
     } catch (error) {
-      texto(mensaje, error.message || 'No se pudo generar el horario.');
+      if (turno !== consulta) return;
+      reintentar.hidden = false;
+      texto(mensaje, error.message || 'No se pudo consultar la disponibilidad.');
+    } finally {
+      if (turno === consulta) {
+        consultando = false;
+        actualizarResumen();
+      }
     }
   }
 
+  formulario.addEventListener('submit', guardarCurso);
+  reintentar.addEventListener('click', recalcular);
+
   try {
-    const [periodos, materias, grupos, horarios] = await Promise.all([
-      getPeriodos(), getMaterias(), getGrupos(), getFranjasHorarias()
+    const [periodos, materias, grupos, horarios, curso] = await Promise.all([
+      getPeriodos(), getMaterias(), getGrupos(), getFranjasHorarias(), id ? getCurso(id) : null
     ]);
     catalogos = { periodos, materias, grupos, horarios };
-    cargarSelect(periodoSelect, periodos.filter((item) => item.estado !== 'CERRADO'), 'Selecciona un periodo', (item) => `${item.clave} — ${item.nombre} — ${item.estado}`);
+    const periodosVisibles = periodos.filter(item => item.estado === 'BORRADOR' || item.id === curso?.periodoId);
+    cargarSelect(periodoSelect, periodosVisibles, 'Selecciona un periodo', (item) => `${item.clave} — ${item.nombre} — ${item.estado}`);
     cargarSelect(materiaSelect, materias, 'Selecciona una materia', (item) => `${item.clave} — ${item.nombre}`);
     cargarSelect(grupoSelect, grupos, 'Selecciona un grupo', (item) => `${item.nombre} — ${item.cantidadAlumnos} alumnos`);
 
@@ -285,9 +222,16 @@ async function inicializarFormularioCurso() {
     periodoSelect.addEventListener('change', recalcular);
     baseSelect.addEventListener('change', recalcular);
 
-    if (id) {
+    if (curso) {
       titulo.textContent = 'Editar curso';
-      const curso = await getCurso(id);
+      estadoCurso = curso.estado || 'BORRADOR';
+      periodoProtegido = Boolean(curso.periodo && curso.periodo.estado !== 'BORRADOR');
+      if (periodoProtegido) {
+        for (const campo of [periodoSelect, materiaSelect, grupoSelect, baseSelect, document.getElementById('recursosCurso')]) {
+          campo.disabled = true;
+        }
+      }
+      seleccionInicial = curso;
       periodoSelect.value = String(curso.periodoId || '');
       materiaSelect.value = String(curso.materiaId);
       grupoSelect.value = String(curso.grupoId);
@@ -299,38 +243,41 @@ async function inicializarFormularioCurso() {
         && (Number(franja.horaFin.slice(0, 2)) - Number(franja.horaInicio.slice(0, 2))) === 2);
       if (baseExistente) baseSelect.value = String(baseExistente.id);
       await recalcular();
-      profesorSeleccionado = window.__candidatosCurso?.find((item) => item.id === curso.profesorId) || null;
-      salonSeleccionado = window.__salonesCurso?.find((item) => item.id === curso.salonId) || null;
     }
     actualizarResumen();
   } catch (error) {
     texto(mensaje, error.message || 'No se pudieron cargar los datos del curso.');
   }
 
-  formulario.addEventListener('submit', async (event) => {
+  async function guardarCurso(event) {
     event.preventDefault();
-    texto(mensaje, '');
-    if (!patron?.ok || !profesorSeleccionado?.compatible || !salonSeleccionado) {
-      texto(mensaje, 'Selecciona periodo, materia, grupo, horario, profesor compatible y salón disponible.');
+    if (guardando) return;
+    if (!puedeGuardar()) {
+      actualizarResumen();
       return;
     }
     const payload = {
       periodoId: Number(periodoSelect.value),
       materiaId: Number(materiaSelect.value),
       grupoId: Number(grupoSelect.value),
-      profesorId: profesorSeleccionado.id,
-      salonId: salonSeleccionado.id,
+      profesorId: profesores.actual.id,
+      salonId: aulas.actual.id,
       horarioIds: patron.horarioIds,
-      estado: 'BORRADOR'
+      estado: estadoCurso
     };
+    guardando = true;
     guardar.disabled = true;
+    formulario.inert = true;
+    texto(mensaje, '');
     try {
       if (id) await actualizarCurso(id, payload);
       else await crearCurso(payload);
       window.location.href = 'cursos.html';
     } catch (error) {
-      texto(mensaje, error.message || 'No se pudo guardar el curso.');
-      guardar.disabled = false;
+      guardando = false;
+      formulario.inert = false;
+      await recalcular();
+      if (!mensaje.textContent) texto(mensaje, error.message || 'No se pudo guardar el curso.');
     }
-  });
+  }
 }
