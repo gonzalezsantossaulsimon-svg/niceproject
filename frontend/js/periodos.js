@@ -34,6 +34,10 @@ async function cargar() {
     horario.href = `horario-semanal.html?periodoId=${encodeURIComponent(periodo.id)}`;
     horario.className = 'w3-button w3-indigo w3-round w3-margin-right';
     horario.textContent = 'Horario semanal';
+    const global = document.createElement('a');
+    global.href = `planificacion-global.html?periodoId=${encodeURIComponent(periodo.id)}`;
+    global.className = 'w3-button w3-indigo w3-round w3-margin-right';
+    global.textContent = 'Planificación global';
     const validar = document.createElement('button');
     validar.type = 'button';
     validar.className = 'w3-button w3-green w3-round';
@@ -47,7 +51,7 @@ async function cargar() {
         await cargar();
       } catch (error) { window.alert(error.message); }
     });
-    acciones.append(editar, conflictos, planificacion, horario, validar);
+    acciones.append(editar, conflictos, planificacion, horario, global, validar);
     card.append(titulo, estado, fechas, acciones);
     contenedor.append(card);
   }

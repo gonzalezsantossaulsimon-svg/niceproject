@@ -2,7 +2,7 @@ import { generarPatronAcademico } from './horario-academico.js';
 import { recomendarProfesores, UMBRAL_CARGA_CERCANA } from './recomendacion-profesores.js';
 import { listarSalonesDisponibles } from './disponibilidad-salones.js';
 
-export function generarPropuestasPlanificacion(db, periodoId, necesidadId, limite = 3) {
+export function enumerarAlternativasPlanificacion(db, periodoId, necesidadId, { aislarSalonesPorPeriodo = false } = {}) {
   const necesidad = db.prepare(`
     SELECT n.*, m.clave AS materiaClave, m.nombre AS materiaNombre,
       m.horasSemanales, g.clave AS grupoClave, g.nombre AS grupoNombre,
@@ -33,8 +33,8 @@ export function generarPropuestasPlanificacion(db, periodoId, necesidadId, limit
     const patron = generarPatronAcademico(db, necesidad.materiaId, base.id);
     if (!patron.ok) continue;
     const profesores = recomendarProfesores(db, necesidad.materiaId, periodoId, patron.horarioIds);
+    const salones = listarSalonesDisponibles(db, necesidad.materiaId, necesidad.grupoId, patron.horarioIds, null, aislarSalonesPorPeriodo ? periodoId : null);
     for (const profesor of profesores.filter((item) => item.compatible)) {
-      const salones = listarSalonesDisponibles(db, necesidad.materiaId, necesidad.grupoId, patron.horarioIds);
       for (const salon of salones) {
         const cargaResultante = Number(profesor.cargaActual) + horas;
         const maximo = Number(profesor.maxHorasSemanales);
@@ -105,6 +105,12 @@ export function generarPropuestasPlanificacion(db, periodoId, necesidadId, limit
       grupo: { id: necesidad.grupoId, clave: necesidad.grupoClave, nombre: necesidad.grupoNombre, cantidadAlumnos: necesidad.cantidadAlumnos },
       estado: necesidad.estado
     },
-    alternativas: alternativas.slice(0, Math.max(1, Math.min(3, Number(limite) || 3)))
+    alternativas
   };
+}
+
+export function generarPropuestasPlanificacion(db, periodoId, necesidadId, limite = 3) {
+  const resultado = enumerarAlternativasPlanificacion(db, periodoId, necesidadId);
+  if (!resultado.ok) return resultado;
+  return { ...resultado, alternativas: resultado.alternativas.slice(0, Math.max(1, Math.min(3, Number(limite) || 3))) };
 }

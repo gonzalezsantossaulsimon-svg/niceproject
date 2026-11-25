@@ -179,6 +179,35 @@ test('HTTP smoke, CRUD curso, restricciones duras y publicación en DB aislada',
   });
   assert.equal(necesidadEliminar.status,201);
   assert.equal((await request('DELETE',`/necesidades-planificacion/${necesidadEliminar.data.id}`)).status,200);
+  // Simulación global por HTTP: comprobar respuesta y ausencia de escrituras.
+  const rutaGlobal = `/periodos/${periodId}/planificacion-global`;
+  const antesCursos = await request('GET','/cursos');
+  const antesNecesidades = await request('GET',`/periodos/${periodId}/necesidades-planificacion`);
+  const global = await request('POST',rutaGlobal,{});
+  assert.equal(global.status,200,JSON.stringify(global.data));
+  assert.equal(global.data.ok,true);
+  assert.equal(global.data.soloLectura,true);
+  assert.equal(global.data.aplicable,false);
+  assert.equal(global.data.resumen.nuevas,1);
+  assert.equal(global.data.asignaciones[0].necesidadId,necesidadCreada.data.id);
+  assert.equal(global.data.busqueda.coberturaOptima,true);
+  assert.deepEqual((await request('POST',rutaGlobal,{})).data,global.data);
+  assert.equal((await request('POST',rutaGlobal,{limite:1})).status,200);
+  for (const limite of [0,-1,1.5,100001,'20',null]) {
+    assert.equal((await request('POST',rutaGlobal,{limite})).status,400);
+  }
+  const abc = await request('POST',rutaGlobal,{modo:'ABC'});
+  assert.equal(abc.status,200,JSON.stringify(abc.data));
+  assert.deepEqual(abc.data.planes.map(p => p.id), ['A','B','C']);
+  assert.ok(abc.data.planes.every(p => p.resumen.nuevas===1 && p.aplicable===false));
+  assert.ok(abc.data.planes.every(p => Number.isFinite(p.metricas.cargaRmsPorcentaje)));
+  assert.equal((await request('POST',rutaGlobal,{modo:'D'})).status,400);
+  assert.equal((await request('POST',rutaGlobal,{modo:'ABC',aplicar:true})).status,400);
+  assert.equal((await request('POST',rutaGlobal,{aplicar:true})).status,400);
+  assert.equal((await request('POST','/periodos/abc/planificacion-global',{})).status,400);
+  assert.equal((await request('POST','/periodos/99999999/planificacion-global',{})).status,404);
+  assert.deepEqual(await request('GET','/cursos'),antesCursos);
+  assert.deepEqual(await request('GET',`/periodos/${periodId}/necesidades-planificacion`),antesNecesidades);
   const necesidadAsignada = await request('POST',`/periodos/${periodId}/aplicar-propuesta`,{
     necesidadId:necesidadCreada.data.id,
     profesorId:profIds[0],
@@ -271,7 +300,13 @@ test('HTTP smoke, CRUD curso, restricciones duras y publicación en DB aislada',
   const newPeriod = await request('POST','/periodos',{clave:'2027-2',nombre:'Periodo sin cursos'});
   assert.equal(newPeriod.status,201);
   assert.equal((await request('PUT',`/periodos/${newPeriod.data.id}`,{estado:'VALIDADO'})).status,200);
+  const rutaGlobalNuevo = `/periodos/${newPeriod.data.id}/planificacion-global`;
+  const simulacionValidada = await request('POST',rutaGlobalNuevo,{});
+  assert.equal(simulacionValidada.status,200);
+  assert.equal(simulacionValidada.data.asignaciones.length,0);
+  assert.equal(simulacionValidada.data.aplicable,false);
   assert.equal((await request('PUT',`/periodos/${newPeriod.data.id}`,{estado:'PUBLICADO'})).status,200);
+  assert.equal((await request('POST',rutaGlobalNuevo,{})).status,409);
   assert.equal((await request('POST',`/periodos/${newPeriod.data.id}/necesidades-planificacion`,{
     materiaId:matterId,
     grupoId:groupIds[0]
