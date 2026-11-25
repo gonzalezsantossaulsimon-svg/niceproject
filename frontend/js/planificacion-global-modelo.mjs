@@ -1,3 +1,5 @@
+import { cursosDelPeriodo, sesionesDe } from './horario-semanal-modelo.mjs';
+
 export const CRITERIOS = {
   A: 'Prioriza la calificación académica de las nuevas asignaciones.',
   B: 'Reduce la concentración de carga respecto a la capacidad de los profesores.',
@@ -12,7 +14,8 @@ export function validarComparacion(data, periodoId) {
   }
   for (const id of Object.keys(CRITERIOS)) {
     const plan = data.planes.find(p => p.id === id);
-    if (!plan || !plan.resumen || !plan.metricas || !plan.busqueda || !Array.isArray(plan.asignaciones)
+    if (!plan || (plan.periodo && String(plan.periodo.id) !== String(periodoId))
+      || !plan.resumen || !plan.metricas || !plan.busqueda || !Array.isArray(plan.asignaciones)
       || !Array.isArray(plan.sinAsignar) || plan.resumen.nuevas !== plan.asignaciones.length
       || plan.resumen.pendientesDespues !== plan.sinAsignar.length) throw new Error(`Respuesta incompleta para el plan ${id}.`);
   }
@@ -23,11 +26,37 @@ export function validarComparacion(data, periodoId) {
 export function cursosPropuestos(plan, periodoId) {
   return plan.asignaciones.map(({ necesidadId, alternativa: a }) => ({
     id: -Number(necesidadId), necesidadId, periodoId, estado: 'PROPUESTA',
+    origen: 'propuesto', claveVisual: `propuesta:${periodoId}:${plan.id}:${necesidadId}`,
     materiaId: a.materia.id, materia: a.materia, profesorId: a.profesor.id, profesor: a.profesor,
     grupoId: a.grupo.id, grupo: a.grupo, salonId: a.salon.id, salon: a.salon,
     horarios: a.horario.horarios, advertencias: a.advertencias || [], carga: a.carga,
     calificacion: a.calificacion
   }));
+}
+
+export function cursosRegistrados(lista, periodoId) {
+  if (!Array.isArray(lista) || lista.some(c => !c || !Object.hasOwn(c, 'periodoId'))) {
+    throw new Error('La respuesta de cursos existentes no es válida.');
+  }
+  return cursosDelPeriodo(lista, periodoId).map(c => {
+    if (!Number.isSafeInteger(c.id) || !Array.isArray(c.horarios) || c.horarios.some(h => !h)) {
+      throw new Error('Hay un curso existente con datos incompletos.');
+    }
+    return { ...c, origen: 'existente', claveVisual: `curso:${c.id}` };
+  });
+}
+
+export function cursosPorOrigen(cursos, origen) {
+  return origen === 'todos' ? cursos : cursos.filter(c => c.origen === origen);
+}
+
+export function horarioVisible(cursos, campo, recursoId) {
+  const filtrados = cursos.filter(c => !campo || !recursoId || String(c[campo]) === String(recursoId));
+  const detalle = sesionesDe(filtrados);
+  const conteos = { existente: { cursos: 0, sesiones: 0 }, propuesto: { cursos: 0, sesiones: 0 } };
+  for (const curso of filtrados) conteos[curso.origen].cursos++;
+  for (const sesion of detalle.sesiones) conteos[sesion.curso.origen].sesiones++;
+  return { ...detalle, conteos };
 }
 
 export function estadoBusqueda(busqueda) {

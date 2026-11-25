@@ -13,9 +13,34 @@
 .pg-planes button { border: 1px solid #aab7d0; background: white; color: #283a67; border-radius: 6px; padding: 10px 16px; cursor: pointer; }
 .pg-planes button[aria-pressed="true"] { background: #3f51b5; color: white; }
 .pg-filtros { display: flex; gap: 16px; flex-wrap: wrap; }
-.pg-filtros label { flex: 1 1 200px; }
+.pg-filtros label { flex: 0 1 230px; min-width: 0; font-weight: 600; }
+.pg-filtros select { display: block; width: 100%; padding: 8px; margin-top: 4px; border-radius: 5px; background: white; color: #202b40; font-weight: normal; }
+.pg-incidencia { padding: 12px; margin: 12px 0; background: #fff5df; border-left: 4px solid #946600; }
+.pg-incidencia p { margin: 0 0 8px; }
+.pg-leyenda { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 18px 0 12px; }
+.pg-leyenda > div { display: flex; align-items: center; gap: 9px; }
+.pg-leyenda strong, .pg-leyenda small { display: block; line-height: 1.4; }
+.pg-leyenda small { font-size: 13px; color: #45546a; }
+.pg-muestra { width: 20px; height: 20px; border-radius: 4px; }
+.pg-muestra.existente, .pg-semana .hs-curso.existente { border: 2px solid #42648e; background: #eaf1f9; }
+.pg-muestra.propuesto, .pg-semana .hs-curso.propuesto { border: 2px dashed #00725d; background: #e6f6ef; }
+.pg-semana { max-height: min(65vh, 680px); }
+.pg-semana .hs-dia { position: sticky; top: 0; z-index: 1; }
+.pg-semana .hs-columna:first-child { position: sticky; left: 0; z-index: 2; background: white; }
+.pg-semana .hs-curso { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; padding: 5px 7px; justify-content: flex-start; }
+.pg-semana .hs-curso .pg-marca { font-size: 11px; font-weight: 700; }
+.pg-semana .hs-curso.conflicto { border-color: #9e2739; }
+.pg-semana .conflicto .pg-marca { color: #8f1c2e; }
+#avisoHorario:empty { margin: 0; }
+.pg-desplazar { display: none; margin: 8px 0; font-size: 13px; color: #45546a; }
+@media (max-width: 900px) { .pg-desplazar { display: block; } }
 .pg-lista { padding: 0 0 0 22px; }
 .pg-lista li { margin: 8px 0; }
 .pg-panel .hs-calendario { --dias: 5; --minimo: 974px; }
 .pg-error { color: #a51d2d; font-weight: 600; }
-@media (max-width: 600px) { .pg-panel { padding: 12px; } }
+@media (max-width: 600px) {
+  .pg-panel { padding: 12px; }
+  .pg-filtros { gap: 10px; }
+  .pg-filtros label { flex: 1 1 135px; }
+  .pg-leyenda { gap: 10px 16px; }
+}
