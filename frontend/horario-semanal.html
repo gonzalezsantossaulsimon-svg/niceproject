@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horario semanal | NiceProject</title>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="./css/horario-semanal.css">
+</head>
+<body class="w3-light-grey">
+  <nav class="w3-bar w3-indigo w3-padding" aria-label="Navegación principal">
+    <span class="w3-bar-item w3-large">NiceProject</span>
+    <a href="dashboard.html" class="w3-bar-item w3-button w3-right">Inicio</a>
+    <a href="periodos.html" class="w3-bar-item w3-button w3-right">Periodos</a>
+    <a href="cursos.html" class="w3-bar-item w3-button w3-right">Cursos</a>
+  </nav>
+  <main class="hs-main">
+    <header class="hs-header">
+      <div><p class="hs-kicker">PLANIFICACIÓN ACADÉMICA</p><h1>Horario semanal</h1><p>Consulta las asignaciones reales del periodo. Esta vista no modifica cursos.</p></div>
+      <button id="actualizar" type="button" class="w3-button w3-indigo w3-round" disabled>Actualizar</button>
+    </header>
+    <section class="hs-panel hs-filtros" aria-label="Filtros del horario">
+      <label>Periodo<select id="periodo" class="w3-select w3-border" disabled></select></label>
+      <label>Vista<select id="vista" class="w3-select w3-border" disabled><option value="">Periodo completo</option><option value="profesorId">Por profesor</option><option value="grupoId">Por grupo</option><option value="salonId">Por salón</option></select></label>
+      <label id="filtroLabel" hidden>Seleccionar recurso<select id="entidad" class="w3-select w3-border"></select></label>
+      <a id="planificacion" href="planificacion-periodo.html" class="w3-button w3-border w3-round">Ir a planificación</a>
+    </section>
+    <p id="mensaje" role="status" aria-live="polite">Cargando información…</p>
+    <section id="contenido" hidden>
+      <div id="resumen" class="hs-resumen" aria-live="polite"></div>
+      <div class="hs-leyenda"><span>Color: materia</span><span class="hs-rojo">Conflicto del curso</span><span class="hs-ambar">Advertencia del curso</span><span>Selecciona un bloque para ver sus detalles.</span></div>
+      <div class="hs-scroll" tabindex="0" aria-label="Horario semanal; desplaza horizontalmente si es necesario">
+        <div id="calendario" class="hs-calendario"></div>
+      </div>
+      <p id="excepciones" role="status"></p>
+    </section>
+  </main>
+  <dialog id="detalle" class="hs-dialog" aria-labelledby="detalleTitulo">
+    <div class="hs-dialog-header"><h2 id="detalleTitulo"></h2><form method="dialog"><button class="w3-button w3-border w3-round" aria-label="Cerrar detalles">Cerrar</button></form></div>
+    <div id="detalleContenido"></div>
+    <a id="conflictos" class="w3-button w3-indigo w3-round" href="conflictos.html">Consultar conflictos del periodo</a>
+  </dialog>
+  <script type="module" src="./js/horario-semanal.js"></script>
+</body>
+</html>

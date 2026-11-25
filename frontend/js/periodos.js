@@ -30,6 +30,10 @@ async function cargar() {
     planificacion.href = `planificacion-periodo.html?periodoId=${encodeURIComponent(periodo.id)}`;
     planificacion.className = 'w3-button w3-blue w3-round w3-margin-right';
     planificacion.textContent = 'Planificación';
+    const horario = document.createElement('a');
+    horario.href = `horario-semanal.html?periodoId=${encodeURIComponent(periodo.id)}`;
+    horario.className = 'w3-button w3-indigo w3-round w3-margin-right';
+    horario.textContent = 'Horario semanal';
     const validar = document.createElement('button');
     validar.type = 'button';
     validar.className = 'w3-button w3-green w3-round';
@@ -43,7 +47,7 @@ async function cargar() {
         await cargar();
       } catch (error) { window.alert(error.message); }
     });
-    acciones.append(editar, conflictos, planificacion, validar);
+    acciones.append(editar, conflictos, planificacion, horario, validar);
     card.append(titulo, estado, fechas, acciones);
     contenedor.append(card);
   }
