@@ -166,8 +166,8 @@ export async function eliminarFranjaHoraria(id) {
 }
 
 // -------- CURSOS --------
-export async function getCursos() {
-  return solicitarCatalogo('/cursos', 'GET', undefined, 'Error al obtener los cursos');
+export async function getCursos(periodoId) {
+  return solicitarCatalogo(`/cursos${crearQueryString({ periodoId })}`, 'GET', undefined, 'Error al obtener los cursos');
 }
 
 export async function getCurso(id) {

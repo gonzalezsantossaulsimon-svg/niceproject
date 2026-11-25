@@ -1909,10 +1909,13 @@ function validarCursoPayload(payload, cursoIdActual = null) {
 
 app.get('/api/cursos', (req, res) => {
   try {
-    const cursos = db
-      .prepare('SELECT * FROM cursos ORDER BY id')
-      .all();
-
+    const filtro = req.query.periodoId;
+    const periodoId = parseCatalogId(filtro);
+    if (filtro !== undefined && periodoId === null) return sendError(res, 400, 'ID de periodo inválido');
+    if (periodoId !== null) res.set('Cache-Control', 'no-store');
+    const cursos = periodoId === null
+      ? db.prepare('SELECT * FROM cursos ORDER BY id').all()
+      : db.prepare('SELECT * FROM cursos WHERE periodoId = ? ORDER BY id').all(periodoId);
     return res.json(cursos.map((curso) => buildCursoPayload(curso)));
   } catch (error) {
     console.error(error);
