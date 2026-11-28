@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import test from 'node:test';
 import { createDatabase } from '../database.js';
+import { cursosPropuestos, cursosRegistrados, horarioVisible, validarComparacion } from '../../frontend/js/planificacion-global-modelo.mjs';
 
 const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -244,6 +245,32 @@ test('HTTP smoke, CRUD curso, restricciones duras y publicación en DB aislada',
   for (const key of ['periodo','materia','profesor','grupo','salon']) assert.ok(readCourse.data[key],key);
   assert.equal(readCourse.data.periodo.id,periodId);
   assert.deepEqual(readCourse.data.horarioIds,ids);
+  await t.test('los selectores de edición excluyen el propio curso y respetan los demás del periodo', async () => {
+    const rutaProfesores = `/materias/${matterId}/profesores-recomendados?periodoId=${periodId}&horarioIds=${ids.join(',')}`;
+    const rutaAulas = `/salones/disponibles?materiaId=${matterId}&grupoId=${groupIds[0]}&horarioIds=${ids.join(',')}`;
+    const segundo = await request('POST', '/cursos', {
+      ...coursePayload, profesorId: profIds[1], grupoId: groupIds[1], salonId: roomIds[3]
+    });
+    assert.equal(segundo.status, 201);
+    assert.deepEqual((await request('GET', rutaAulas)).data, []);
+    const editar = `&cursoId=${courseId}`;
+    const profesoresEdicion = (await request('GET', rutaProfesores + editar)).data;
+    assert.equal(profesoresEdicion.find(p => p.id === profIds[0]).cargaActual, 0);
+    assert.equal(profesoresEdicion.find(p => p.id === profIds[0]).compatible, true);
+    assert.equal(profesoresEdicion.find(p => p.id === profIds[1]).compatible, false);
+    assert.equal((await request('GET', rutaProfesores)).data.find(p => p.id === profIds[0]).compatible, false);
+    const aulasEdicion = (await request('GET', rutaAulas + `&periodoId=${periodId}` + editar)).data;
+    assert.deepEqual(aulasEdicion.map(a => a.id), [roomIds[0]]);
+    const otroPeriodo = await request('POST', '/periodos', { clave: 'SEL-2', nombre: 'Otro periodo del selector' });
+    assert.equal(otroPeriodo.status, 201);
+    const aulasOtro = (await request('GET', rutaAulas + `&periodoId=${otroPeriodo.data.id}`)).data;
+    assert.deepEqual(aulasOtro.map(a => a.id), [roomIds[0], roomIds[3]]);
+    assert.equal((await request('GET', rutaAulas + '&periodoId=abc')).status, 400);
+    for (const ruta of [rutaProfesores, rutaAulas]) {
+      assert.equal((await request('GET', ruta + '&cursoId=0')).status, 400);
+    }
+    assert.equal((await request('DELETE', `/cursos/${segundo.data.id}`)).status, 200);
+  });
   assert.equal((await request('PUT',`/cursos/${courseId}`,coursePayload)).status,200);
   assert.equal((await request('DELETE',`/cursos/${courseId}`)).status,200);
   const dbAfterDelete = createDatabase(dbPath);
@@ -333,6 +360,38 @@ test('HTTP smoke, CRUD curso, restricciones duras y publicación en DB aislada',
   assert.equal((await request('GET',`/profesores/${profIds[2]}/calificaciones`)).data.length,0);
   assert.equal((await request('GET',`/profesores/${profIds[2]}`)).status,200);
   assert.equal((await request('GET',`/materias/${matterId}`)).status,200);
+
+  await t.test('HTTP del calendario consolida solo su periodo y ambas consultas dejan SQLite intacta', async () => {
+    const observador = createDatabase(dbPath);
+    try {
+      const insertar = observador.prepare('INSERT INTO cursos (periodoId,materiaId,profesorId,grupoId,salonId) VALUES (?,?,?,?,?)');
+      const horarios = observador.prepare('INSERT INTO curso_horarios (cursoId,horarioId) VALUES (?,?)');
+      for (const periodo of [periodId, newPeriod.data.id, null]) {
+        const id = insertar.run(periodo, matterId, profIds[0], groupIds[0], roomIds[0]).lastInsertRowid;
+        for (const franja of ids) horarios.run(id, franja);
+      }
+      observador.prepare("INSERT INTO necesidades_planificacion (periodoId,materiaId,grupoId,estado) VALUES (?,?,?,'PENDIENTE')")
+        .run(periodId, matterId, groupIds[1]);
+      // data_version en una conexión abierta también detecta commits de la conexión HTTP.
+      const antes = observador.pragma('data_version', { simple: true });
+      const lista = await request('GET', `/cursos?periodoId=${periodId}`);
+      assert.equal(lista.status, 200);
+      assert.deepEqual(lista.data.map(c => c.periodoId), [periodId]);
+      assert.deepEqual((await request('GET', '/cursos')).data.map(c => c.periodoId), [periodId, newPeriod.data.id, null]);
+      assert.deepEqual((await request('GET', '/cursos?periodoId=999999')).data, []);
+      for (const filtro of ['', '0', 'abc', '1&periodoId=2']) {
+        assert.equal((await request('GET', `/cursos?periodoId=${filtro}`)).status, 400);
+      }
+      const simulacion = await request('POST', rutaGlobal, { modo: 'ABC' });
+      assert.equal(simulacion.status, 200);
+      const abc = validarComparacion(simulacion.data, periodId);
+      for (const plan of abc.planes) {
+        const cursos = [...cursosRegistrados(lista.data, periodId), ...cursosPropuestos(plan, periodId)];
+        assert.deepEqual(horarioVisible(cursos).conteos, { existente: { cursos: 1, sesiones: 2 }, propuesto: { cursos: 1, sesiones: 2 } });
+      }
+      assert.equal(observador.pragma('data_version', { simple: true }), antes);
+    } finally { observador.close(); }
+  });
 });
 
 function dbSlot(databasePath,id) {

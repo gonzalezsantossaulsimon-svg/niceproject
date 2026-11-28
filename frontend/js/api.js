@@ -71,13 +71,16 @@ export async function aplicarPropuesta(id, data) {
 export async function getPatronesMateria(materiaId, horarioBaseId) {
   return solicitarCatalogo(`/materias/${encodeURIComponent(materiaId)}/patrones-horarios?horarioBaseId=${encodeURIComponent(horarioBaseId)}`, 'GET', undefined, 'Error al generar el horario');
 }
-export async function getProfesoresRecomendados(materiaId, periodoId, horarioIds) {
-  const ids = horarioIds.map((id) => encodeURIComponent(id)).join(',');
-  return solicitarCatalogo(`/materias/${encodeURIComponent(materiaId)}/profesores-recomendados?periodoId=${encodeURIComponent(periodoId)}&horarioIds=${ids}`, 'GET', undefined, 'Error al obtener profesores');
+export async function getProfesoresRecomendados(materiaId, periodoId, horarioIds, cursoId = null) {
+  const params = new URLSearchParams({ periodoId, horarioIds: horarioIds.join(',') });
+  if (cursoId != null) params.set('cursoId', cursoId);
+  return solicitarCatalogo(`/materias/${encodeURIComponent(materiaId)}/profesores-recomendados?${params}`, 'GET', undefined, 'Error al obtener profesores');
 }
-export async function getSalonesDisponibles(materiaId, grupoId, horarioIds) {
-  const ids = horarioIds.map((id) => encodeURIComponent(id)).join(',');
-  return solicitarCatalogo(`/salones/disponibles?materiaId=${encodeURIComponent(materiaId)}&grupoId=${encodeURIComponent(grupoId)}&horarioIds=${ids}`, 'GET', undefined, 'Error al obtener salones');
+export async function getSalonesDisponibles(materiaId, grupoId, horarioIds, periodoId = null, cursoId = null) {
+  const params = new URLSearchParams({ materiaId, grupoId, horarioIds: horarioIds.join(',') });
+  if (periodoId != null) params.set('periodoId', periodoId);
+  if (cursoId != null) params.set('cursoId', cursoId);
+  return solicitarCatalogo(`/salones/disponibles?${params}`, 'GET', undefined, 'Error al obtener salones');
 }
 export async function actualizarCalificacionesProfesor(id, calificaciones) {
   return solicitarCatalogo(`/profesores/${encodeURIComponent(id)}/calificaciones`, 'PUT', { calificaciones }, 'Error al actualizar calificaciones');
@@ -166,8 +169,8 @@ export async function eliminarFranjaHoraria(id) {
 }
 
 // -------- CURSOS --------
-export async function getCursos() {
-  return solicitarCatalogo('/cursos', 'GET', undefined, 'Error al obtener los cursos');
+export async function getCursos(periodoId) {
+  return solicitarCatalogo(`/cursos${crearQueryString({ periodoId })}`, 'GET', undefined, 'Error al obtener los cursos');
 }
 
 export async function getCurso(id) {

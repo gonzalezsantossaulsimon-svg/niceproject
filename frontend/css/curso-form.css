@@ -1,0 +1,54 @@
+.curso-form { max-width: 1060px; margin: 0 auto; }
+.curso-form form { border-radius: 10px; }
+.curso-form label { display: block; margin-top: 12px; }
+.curso-form select { min-height: 44px; border-radius: 6px; }
+#recursosCurso {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.curso-selectores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+  color: #1b2541;
+}
+.curso-selectores section, .curso-opciones article {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #d7dce7;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.curso-selectores h2, .curso-selectores h3 { margin: 0; font-weight: 650; line-height: 1.3; }
+.curso-selectores h2 { font-size: 20px; }
+.curso-selectores h3 { font-size: 17px; }
+.curso-opciones { display: grid; gap: 9px; }
+.curso-opciones:not(:empty) { margin-top: 12px; }
+.curso-opciones article { padding: 12px; border-radius: 8px; }
+.curso-opciones .curso-actual { border: 2px solid #3f51b5; background: #f2f4ff; padding: 11px; }
+.curso-opciones p { margin: 4px 0; }
+.curso-estado { color: #374995; font-size: 13px; font-weight: 700; }
+.curso-datos, .curso-opciones details { color: #46536a; font-size: 14px; }
+.curso-aviso { color: #853524; font-size: 14px; font-weight: 600; }
+.curso-opciones summary { cursor: pointer; }
+.curso-opciones button, #reintentar {
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 7px 12px;
+  border: 1px solid #aab6d1;
+  border-radius: 7px;
+  background: white;
+  color: #304394;
+  font-weight: 650;
+  cursor: pointer;
+}
+.curso-opciones button:hover, #reintentar:hover { background: #edf0fc; border-color: #5264b6; }
+.curso-form :focus-visible { outline: 3px solid #233eaa; outline-offset: 2px; }
+#estadoSeleccion { font-weight: 650; }
+#guardar:disabled { background: #e8eaf0 !important; color: #525967 !important; opacity: 1; }
+@media (max-width: 690px) {
+  .curso-selectores { grid-template-columns: minmax(0, 1fr); }
+}

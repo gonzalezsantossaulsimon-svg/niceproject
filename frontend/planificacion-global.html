@@ -22,7 +22,7 @@
       <button type="button" id="generar" class="w3-button w3-indigo w3-round" disabled>Generar planes A, B y C</button>
       <a id="necesidades" href="planificacion-periodo.html" class="w3-button w3-border w3-round">Gestionar necesidades</a>
     </section>
-    <p class="pg-nota">Solo simulación. No se crean cursos ni se modifica el horario registrado. Los resultados corresponden al momento de generación.</p>
+    <p class="pg-nota">Simulación de solo lectura. Genera los planes de nuevo para consultar cambios en el periodo.</p>
     <p id="mensaje" role="status" aria-live="polite">Cargando periodos…</p>
     <button id="reintentar" type="button" hidden class="w3-button w3-border w3-round">Recargar periodos</button>
     <section id="resultado" hidden>
@@ -33,13 +33,28 @@
         <div id="planes" class="pg-planes" role="group" aria-label="Seleccionar plan"></div>
       </section>
       <section class="pg-panel"><h2 id="tituloPlan"></h2><p id="criterio"></p><p id="busqueda" class="pg-nota" role="status"></p>
+        <h3 id="tituloHorario">Horario semanal</h3>
+        <div id="errorCursos" class="pg-incidencia" role="status" hidden>
+          <p>Vista parcial. No se pudieron cargar los cursos existentes. Solo puedes consultar las propuestas.</p>
+          <button id="recargarHorario" type="button" class="w3-button w3-white w3-border w3-round">Reintentar la simulación</button>
+        </div>
+        <div class="pg-filtros">
+          <label>Origen <select id="origen" class="w3-select w3-border"><option value="todos">Consolidado</option><option value="existente">Solo existentes</option><option value="propuesto">Solo propuestas</option></select></label>
+          <label>Filtrar por <select id="vista" class="w3-select w3-border"><option value="">Todos los recursos</option><option value="profesorId">Profesor</option><option value="grupoId">Grupo</option><option value="salonId">Salón</option></select></label>
+          <label id="recursoLabel" hidden><span id="nombreRecurso">Recurso</span> <select id="recurso" class="w3-select w3-border"></select></label>
+        </div>
+        <div class="pg-leyenda" aria-label="Cursos y sesiones según los filtros" aria-live="polite">
+          <div><i class="pg-muestra existente" aria-hidden="true"></i><span><strong>Existentes</strong><small id="conteoExistente"></small></span></div>
+          <div><i class="pg-muestra propuesto" aria-hidden="true"></i><span><strong>Propuestas del plan</strong><small id="conteoPropuesto"></small></span></div>
+        </div>
+        <p id="avisoHorario" role="status"></p>
+        <p id="ayudaSemana" class="pg-desplazar">Desplaza el calendario hacia los lados para ver los demás días.</p>
+        <div id="semana" class="hs-scroll pg-semana" role="region" tabindex="0" aria-labelledby="tituloHorario" aria-describedby="ayudaSemana"><div id="calendario" class="hs-calendario"></div></div>
+      </section>
+      <section class="pg-panel"><h2 id="tituloDetalle">Detalle del plan</h2>
         <h3>Nuevas asignaciones propuestas</h3><div class="pg-scroll"><table class="pg-tabla" id="asignaciones"></table></div>
         <h3>Necesidades sin asignar</h3><div id="sinAsignar"></div>
         <h3>Conflictos de cursos existentes</h3><div id="conflictos"></div>
-      </section>
-      <section class="pg-panel"><h2>Vista semanal de propuestas</h2><p>Solo se muestran las nuevas asignaciones del plan seleccionado; no es el horario oficial ni incluye los cursos ya registrados.</p>
-        <div class="pg-filtros"><label>Vista <select id="vista" class="w3-select w3-border"><option value="">Todas las propuestas</option><option value="profesorId">Por profesor</option><option value="grupoId">Por grupo</option><option value="salonId">Por salón</option></select></label><label id="recursoLabel" hidden>Recurso <select id="recurso" class="w3-select w3-border"></select></label></div>
-        <p id="avisoHorario" role="status"></p><div class="hs-scroll" tabindex="0" aria-label="Vista previa semanal desplazable"><div id="calendario" class="hs-calendario"></div></div>
       </section>
     </section>
   </main>
